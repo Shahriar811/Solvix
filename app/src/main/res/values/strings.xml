@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Task Automator</string>
+    <string name="location_services">Location Services</string>
+    <string name="add_instruction">Add Instruction</string>
+    <string name="add_application">Add Application</string>
+    <string name="refresh">Refresh</string>
+    <string name="enable_location">Enable Location</string>
+    <string name="request_permission">Request Permission</string>
+    <string name="no_location_data">No location data available</string>
+    <string name="tap_refresh">Tap refresh to get current location</string>
+</resources>

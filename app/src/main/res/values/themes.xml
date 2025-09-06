@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base application theme -->
+    <style name="Theme.TaskAutomator" parent="android:Theme.Material.Light.NoActionBar">
+        <!-- Primary colors -->
+        <item name="android:colorPrimary">@color/purple_500</item>
+        <item name="android:colorPrimaryDark">@color/purple_700</item>
+        <item name="android:colorAccent">@color/teal_200</item>
+        <!-- Background -->
+        <item name="android:windowBackground">@color/white</item>
+        <!-- Status bar color -->
+        <item name="android:statusBarColor">@color/purple_700</item>
+    </style>
+
+    <!-- NoActionBar theme for MainActivity -->
+    <style name="Theme.TaskAutomator.NoActionBar" parent="Theme.TaskAutomator" />
+</resources>
