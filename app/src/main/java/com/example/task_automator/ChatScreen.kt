@@ -2,7 +2,9 @@ package com.example.task_automator
 
 import android.Manifest
 import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -36,12 +38,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.task_automator.helpers.OfflineModelRepository
 import com.example.task_automator.ui.components.ModelSetupPanel
+import com.example.task_automator.ui.components.AboutSection
+import com.example.task_automator.ui.components.DEVELOPER_GITHUB_URL
 import com.example.task_automator.ui.theme.AppThemeMode
 import com.example.task_automator.ui.theme.ThemeManager
 import java.io.File
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ChatScreen() {
     val vm: ChatModelViewModel = viewModel()
@@ -49,6 +53,7 @@ fun ChatScreen() {
     val runtime by vm.state.collectAsState()
     val installation by OfflineModelRepository.state.collectAsState()
     val context = LocalContext.current
+    val keyboardVisible = WindowInsets.isImeVisible
     val scope = rememberCoroutineScope()
     val drawer = rememberDrawerState(DrawerValue.Closed)
     var settings by rememberSaveable { mutableStateOf(false) }
@@ -109,6 +114,10 @@ fun ChatScreen() {
         }
     ) {
         Scaffold(
+            // Resize the entire chat for the IME once. The composer only owns
+            // navigation-bar spacing, so focusing it cannot lift it twice.
+            modifier = Modifier.fillMaxSize().imePadding(),
+            contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal),
             topBar = {
                 Row(Modifier.fillMaxWidth().statusBarsPadding().height(60.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { scope.launch { drawer.open() } }, enabled = !chat.busy) { Icon(Icons.Default.Menu, "Chat history") }
@@ -120,7 +129,7 @@ fun ChatScreen() {
                 }
             },
             bottomBar = {
-                Column(Modifier.fillMaxWidth().navigationBarsPadding().imePadding().padding(horizontal = 12.dp)) {
+                Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 12.dp)) {
                     chat.error?.let { error ->
                         Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(8.dp))
                         if (!chat.historyReady) TextButton(onClick = vm::loadHistory) { Text("Retry loading history") }
@@ -166,12 +175,14 @@ fun ChatScreen() {
                             }
                         }
                     }
-                    Text("Private · On your device", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.align(Alignment.CenterHorizontally).padding(8.dp))
+                    if (!keyboardVisible) {
+                        Text("Private · On your device", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.align(Alignment.CenterHorizontally).padding(8.dp))
+                    } else Spacer(Modifier.height(4.dp))
                 }
             }
         ) { insets ->
-            Column(Modifier.fillMaxSize().padding(insets)) {
+            Column(Modifier.fillMaxSize().padding(insets).consumeWindowInsets(insets)) {
                 if (!runtime.ready && chat.current.messages.isNotEmpty()) {
                     TextButton(onClick = { settings = true }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
                         Text(if (runtime.loading || installation.busy) "Preparing offline assistant…" else "Set up offline assistant")
@@ -224,6 +235,14 @@ fun ChatScreen() {
                 ModelSetupPanel(installation, runtime,
                     onImport = { try { modelPicker.launch(arrayOf("*/*")) } catch (_: ActivityNotFoundException) { vm.session.reportError("No file picker is available.") } },
                     onDownload = { OfflineModelRepository.download(it) }, onCancel = OfflineModelRepository::cancel, onRetryLoading = vm::retryLoading)
+                HorizontalDivider(Modifier.padding(vertical = 20.dp))
+                AboutSection(onOpenGitHub = {
+                    try {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(DEVELOPER_GITHUB_URL)))
+                    } catch (_: ActivityNotFoundException) {
+                        vm.session.reportError("No browser is available to open the GitHub profile.")
+                    }
+                })
             }
         }
     }

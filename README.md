@@ -1,36 +1,57 @@
 # Solvix
 
-A minimal Android chat app for a private offline assistant. The app opens directly into chat; no account is required.
+**A clean, private Android chat app.**
 
-- Text chat and photo questions, with replies shown as they are generated.
-- A history drawer with the 10 most recent unpinned conversations.
-- Pin conversations to protect them from automatic cleanup; delete any conversation explicitly.
-- Conversations and photos stay in private local storage and survive app restarts.
-- Simple light, dark and system appearance options.
-- Download or import the offline model from Settings.
+Solvix opens directly into a conversation. Ask questions, share photos and read answers as they are generated—all on your device after the one-time model setup. No account is required.
 
-Dashboard, sensors, location tools, notification access and sign-in have been removed. The launcher name, logo and application ID are preserved.
+Developed by **[Md. Shahriar Hossain](https://github.com/Shahriar811)**.
 
-## Using chat history
+## Features
 
-Open the menu at the top left to see **Pinned** and **Recent** chats. Tap a conversation to continue it. Use the pin button to keep it, and the delete button to remove it after confirmation. Pinned conversations do not count toward the 10-chat recent limit. Unpinning an older chat makes it eligible for automatic removal.
+- **Minimal chat interface** with light, dark and system appearance.
+- **Offline text and photo questions** after the assistant is installed.
+- **Streaming answers**, a stop button, text selection and copy controls.
+- **Local chat history** that keeps your 10 most recent unpinned conversations.
+- **Pinned conversations** that stay until you explicitly delete them.
+- **Model download or import** from Settings.
+- **Developer information** and a GitHub profile link in Settings → About Solvix.
 
-A conversation is saved after a successful answer or a stopped partial answer. Drafts are kept through rotation but not persisted after process termination. Deleting a chat also removes its associated photos. The archive uses atomic file replacement; if saving fails, the input is kept for retry.
+## Get started
 
-## Response speed
+1. Install Solvix and open Settings from the three-dot menu.
+2. Under **Offline assistant**, choose **Download** or **Import**. Allow at least 2.7 GB of free space for the 2.59 GB model. Downloads use Wi-Fi by default.
+3. Once setup finishes, start chatting. Use **+** to choose or capture a photo on devices that support image analysis.
 
-Replies stream instead of waiting for the complete answer. One model engine remains loaded while the app is open, and the active conversation's context is reused. Switching to a saved chat restores that chat's full saved context. Image encoding happens once per attachment.
+Model setup instructions, runtime requirements and the verified download source are in [MODEL_SETUP.md](MODEL_SETUP.md).
 
-The model, CPU backend, four-thread configuration, sampling settings and 4,096-token context limit are unchanged. Streaming reduces the wait before seeing text; it is not a measured improvement in tokens per second. No hardware performance claim is made without device benchmarks.
+## Your conversations
 
-## Build and tests
+Use the menu at the top left to open **Pinned** and **Recent** chats. Tap a chat to continue it, the pin icon to protect it from cleanup, or the trash icon to delete it after confirmation.
 
-Use a compatible JDK and the configured Android SDK:
+Pinned chats do not count toward the 10-chat recent limit. When a new conversation is saved, older unpinned chats are removed automatically. Unpinning an old conversation makes it eligible for cleanup. Deleting a chat also removes its saved photos.
+
+Completed answers and stopped partial answers are saved locally and survive app restarts. Drafts and in-flight replies survive screen rotation; drafts are not saved across process termination. Clearing app data or uninstalling Solvix removes local history and the installed model.
+
+## Responsiveness
+
+Answers stream while being generated, and the model stays loaded while the app is open. The current conversation's context is reused; opening another saved chat restores its own context.
+
+Model and answer-quality settings are unchanged. Hardware speed has not been benchmarked, and long conversations remain subject to the model's context limit.
+
+## Build and validation
+
+The project uses Kotlin 2.2.21, Android Gradle Plugin 8.10.1 and LiteRT-LM 0.13.1. Configure a compatible JDK and Android SDK, then run:
 
 ```powershell
 .\gradlew.bat :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:compileDebugAndroidTestKotlin
 ```
 
-Local tests cover history retention, pinning, deletion, persistence, attachment cleanup, streaming, stopping, request failures and model integrity. Device tests are optional and must be run separately.
+Local tests cover retention, pinning, deletion, persistence, photo cleanup, streaming, stopping and model integrity. Device tests and hardware benchmarks run separately.
 
-See [model setup](MODEL_SETUP.md) for the required download and runtime compatibility.
+## Developer
+
+**Md. Shahriar Hossain**
+
+- [GitHub profile — @Shahriar811](https://github.com/Shahriar811)
+- [Source code](https://github.com/Shahriar811/Solvix)
+- [Report an issue](https://github.com/Shahriar811/Solvix/issues)
