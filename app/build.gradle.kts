@@ -14,8 +14,8 @@ android {
         applicationId = "com.example.task_automator"
         minSdk = 27
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.3"
+        versionCode = 6
+        versionName = "1.3.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         vectorDrawables {
@@ -37,6 +37,7 @@ android {
     }
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
@@ -82,6 +83,10 @@ dependencies {
 
     // Durable local chat history.
     implementation("com.google.code.gson:gson:2.14.0")
+
+    // Offline Markdown parsing for prose; fenced code retains its original text.
+    implementation("org.commonmark:commonmark:0.30.0")
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")

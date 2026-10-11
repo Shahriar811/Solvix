@@ -17,7 +17,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
@@ -73,7 +72,6 @@ fun ChatScreen() {
     }
     var attachments by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<SavedChat?>(null) }
-    val listState = rememberLazyListState()
     var importModelId by rememberSaveable { mutableStateOf(ModelCatalog.DEFAULT_ID) }
     val modelPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { vm.importModel(it, importModelId) } }
     LaunchedEffect(settings) { if (settings) OfflineModelRepository.refreshHardware() }
@@ -88,14 +86,6 @@ fun ChatScreen() {
         if (granted) capture() else vm.session.reportError("Camera access was denied. You can still choose a photo.")
     }
     BackHandler(drawer.isOpen) { scope.launch { drawer.close() } }
-    LaunchedEffect(chat.current.id) {
-        if (chat.current.messages.isNotEmpty()) listState.scrollToItem(chat.current.messages.lastIndex)
-    }
-    LaunchedEffect(chat.current.messages.size, chat.partialReply, chat.sending) {
-        val total = listState.layoutInfo.totalItemsCount
-        val bottom = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-        if (total > 0 && bottom >= total - 2) listState.scrollToItem(total - 1)
-    }
 
     ModalNavigationDrawer(
         drawerState = drawer,
@@ -227,15 +217,15 @@ fun ChatScreen() {
                             }
                         }
                     } else {
-                        LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                            items(chat.current.messages, key = { it.id }) { message -> ChatMessageView(message, message.imageName?.let(vm.history::imageFile)) }
-                            if (chat.sending) {
-                                item(key = "pending-user") { ChatMessageView(ChatMessage(role = ChatRole.USER, text = chat.draft.trim().ifBlank { "Describe this image." }), chat.imageName?.let(vm.history::imageFile)) }
-                                item(key = "reply") {
-                                    if (chat.partialReply.isBlank()) Text("Thinking…", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    else AssistantText(chat.partialReply)
-                                }
-                            }
+                        val pending = if (chat.sending) listOf(
+                            ChatMessage(role = ChatRole.USER, text = chat.draft.trim().ifBlank { "Describe this image." }, imageName = chat.imageName),
+                            ChatMessage(role = ChatRole.ASSISTANT, text = chat.partialReply)
+                        ) else emptyList()
+                        ChatTranscript(chat.current.id, chat.current.messages, pending, modifier = Modifier.fillMaxSize()) { message ->
+                            if (message.role == ChatRole.ASSISTANT && message.text.isBlank()) {
+                                Text("Thinking…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            } else ChatMessageView(message, message.imageName?.let(vm.history::imageFile),
+                                streaming = chat.sending && message.id == pending.lastOrNull()?.id)
                         }
                     }
                 }
@@ -313,7 +303,7 @@ internal fun HistoryRow(chat: SavedChat, selected: Boolean, enabled: Boolean, on
         IconButton(onClick = onDelete, enabled = enabled) { Icon(Icons.Default.DeleteOutline, "Delete chat", modifier = Modifier.size(18.dp)) }
     }
 }
-@Composable private fun ChatMessageView(message: ChatMessage, image: File?) {
+@Composable private fun ChatMessageView(message: ChatMessage, image: File?, streaming: Boolean = false) {
     if (message.role == ChatRole.USER) {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
             Surface(color = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -324,5 +314,5 @@ internal fun HistoryRow(chat: SavedChat, selected: Boolean, enabled: Boolean, on
                 }
             }
         }
-    } else AssistantText(message.text)
+    } else AssistantText(message.text, streaming)
 }

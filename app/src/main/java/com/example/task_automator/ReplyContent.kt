@@ -20,35 +20,29 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 
-/** Small renderer for readable prose, headings, emphasis and fenced code. */
-@Composable internal fun ReplyContent(text: String) {
+/** Native Markdown prose and code, with no remote HTML or image loading. */
+@Composable internal fun ReplyContent(text: String, streaming: Boolean = false) {
     val blocks = remember(text) { parseReply(text) }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         blocks.forEach { block ->
             if (block is ReplyBlock.Code) {
                 ReplyCodeBlock(block)
             } else if (block is ReplyBlock.Prose && block.text.isNotBlank()) {
-                block.text.trim().split("\n\n").forEach { paragraph ->
-                    val heading = paragraph.startsWith("#")
-                    val clean = if (heading) paragraph.trimStart('#', ' ') else paragraph
-                    val formatted = buildAnnotatedString {
-                        val pattern = Regex("\\*\\*(.+?)\\*\\*|`([^`]+)`")
-                        var cursor = 0
-                        pattern.findAll(clean).forEach { match ->
-                            append(clean.substring(cursor, match.range.first))
-                            if (match.groups[1] != null) withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) { append(match.groupValues[1]) }
-                            else withStyle(SpanStyle(fontFamily = FontFamily.Monospace)) { append(match.groupValues[2]) }
-                            cursor = match.range.last + 1
-                        }
-                        append(clean.substring(cursor))
+                val elements = remember(block.text, streaming) { ProseFormatting.parse(block.text, streaming) }
+                elements.forEach { element ->
+                    when (element) {
+                        is ProseElement.Text -> Text(element.value,
+                            fontSize = if (element.headingLevel > 0) 18.sp else 16.sp, lineHeight = 25.sp,
+                            fontWeight = if (element.headingLevel > 0) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (element.quote) MaterialTheme.colorScheme.onSurfaceVariant else LocalContentColor.current,
+                            modifier = Modifier.padding(start = (element.indent * 12).dp))
+                        is ProseElement.Code -> ReplyCodeBlock(ReplyBlock.Code("", element.text))
+                        ProseElement.Divider -> HorizontalDivider()
                     }
-                    Text(formatted, fontSize = if (heading) 18.sp else 16.sp, lineHeight = 25.sp,
-                        fontWeight = if (heading) FontWeight.SemiBold else FontWeight.Normal)
                 }
             }
         }
@@ -101,9 +95,9 @@ import kotlinx.coroutines.delay
     }
 }
 
-@Composable internal fun AssistantText(text: String) {
+@Composable internal fun AssistantText(text: String, streaming: Boolean = false) {
     Column(Modifier.fillMaxWidth()) {
-        androidx.compose.foundation.text.selection.SelectionContainer { ReplyContent(text) }
+        androidx.compose.foundation.text.selection.SelectionContainer { ReplyContent(text, streaming) }
         CopyTextButton(text, "Copy answer")
     }
 }

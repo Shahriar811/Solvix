@@ -54,7 +54,8 @@ class LlmInferenceHelper {
     private fun newConversation(history: List<Message> = emptyList()) = checkNotNull(engine).createConversation(ConversationConfig(
         systemInstruction = Contents.of("You are Solvix, a helpful on-device assistant. Give clear, concise answers. " +
             "When providing code, use Markdown fenced code blocks with the programming language after the opening fence. " +
-            "Keep explanations outside the code blocks."),
+            "Keep explanations outside the code blocks. Use readable prose and simple lists; " +
+            "avoid decorative asterisks, underscore separators, and excessive emphasis. Wrap inline code in backticks."),
         initialMessages = history,
         samplerConfig = SamplerConfig(topK = 40, topP = 0.95, temperature = 0.7),
         extraContext = mapOf("enable_thinking" to profile.reasoning),

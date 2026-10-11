@@ -20,7 +20,7 @@ Ask questions, share photos, and get answers that stream as they are generated.
 Once a compatible model is installed, chat runs offline. No account required.
 
 <p>
-  <a href="https://github.com/Shahriar811/Solvix/releases/download/v1.3/Solvix-1.3-debug.apk"><img src="https://img.shields.io/badge/Download_Solvix-APK_v1.3-007780?style=for-the-badge&amp;logo=android&amp;logoColor=white" alt="Download Solvix 1.3 APK" /></a>
+  <a href="https://github.com/Shahriar811/Solvix/releases/download/v1.3.2/Solvix-1.3.2-debug.apk"><img src="https://img.shields.io/badge/Download_Solvix-APK_v1.3.2-007780?style=for-the-badge&amp;logo=android&amp;logoColor=white" alt="Download Solvix 1.3.2 APK" /></a>
 </p>
 
 [Releases](https://github.com/Shahriar811/Solvix/releases) · [Model setup](MODEL_SETUP.md) · [Report an issue](https://github.com/Shahriar811/Solvix/issues)
@@ -45,6 +45,7 @@ Navy and teal accents, softly tinted messages, and a chat-first layout keep Solv
 - **Offline text and photo questions** after the assistant is installed.
 - **Streaming answers**, a stop button, text selection and copy controls.
 - **Colored code blocks** with language labels, scrolling for long lines and a separate copy button for each snippet. Every answer also has a copy button with confirmation.
+- **Readable answer formatting** for bold/italic text, nested emphasis, headings, bullets, quotes and divider lines. Code operators and identifiers are preserved.
 - **Local chat history** that keeps your 10 most recent unpinned conversations.
 - **Pinned conversations** that stay until you explicitly delete them.
 - **Six-model library** with model import, Hugging Face download and switching.
@@ -53,8 +54,8 @@ Navy and teal accents, softly tinted messages, and a chat-first layout keep Solv
 
 ## Download & installation
 
-1. Download [**Solvix 1.3 APK**](https://github.com/Shahriar811/Solvix/releases/download/v1.3/Solvix-1.3-debug.apk), or visit [Releases](https://github.com/Shahriar811/Solvix/releases).
-2. Open `Solvix-1.3-debug.apk` on your Android device. If prompted, allow installation from the browser or file manager you used.
+1. Download [**Solvix 1.3.2 APK**](https://github.com/Shahriar811/Solvix/releases/download/v1.3.2/Solvix-1.3.2-debug.apk), or visit [Releases](https://github.com/Shahriar811/Solvix/releases).
+2. Open `Solvix-1.3.2-debug.apk` on your Android device. If prompted, allow installation from the browser or file manager you used.
 3. Open Solvix and go to **Settings → Models**. Expand a model and choose **Download** or **Import**.
 4. Review the hardware and storage estimate. Downloads use **Wi-Fi only** by default. After installation, choose **Use model** and start chatting. Use **+** to choose or capture a photo with an image-capable model on supported hardware.
 
@@ -76,6 +77,8 @@ Completed answers and stopped partial answers are saved locally and survive app 
 
 Answers stream while being generated, and the model stays loaded while the app is open. The current conversation's context is reused; opening another saved chat restores its own context.
 
+New text is followed while you are at the bottom. Scroll away to read at your own pace, then scroll back down or use **Scroll to latest** to resume following. Saving a completed reply preserves your reading position.
+
 Hardware checks are estimates, and larger models can run more slowly or encounter memory limits. Device speed and the new model profiles have not been benchmarked. Conversation length remains subject to the selected model's context limit.
 
 ## Build and validation
@@ -90,7 +93,9 @@ cd Solvix
 
 The debug APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
 
-**Latest local validation:** 51 tests passed, the debug build and device-test compilation passed, and lint reported zero errors. Tests cover chat retention, persistence, stopping and streaming, keyboard layout, model integrity, hardware policy, switching and rollback, code formatting, and clipboard behavior. These are local checks; phone tests and performance benchmarks run separately. See [validation notes](BUGFIX_NOTES.md).
+Markdown prose is parsed locally with [commonmark-java](https://github.com/commonmark/commonmark-java/tree/commonmark-parent-0.30.0), with Android API backports enabled for the project's minimum SDK. Fenced code stays in its original form for highlighting and copying.
+
+**Latest local validation:** 71 tests passed, the debug build and device-test compilation passed, and lint reported zero errors. Tests cover chat retention, persistence, stopping and streaming, keyboard layout, model integrity, hardware policy, switching and rollback, code and prose formatting, clipboard behavior, and scrolling through replies while they are generated. These are local checks; phone tests and performance benchmarks run separately. See [validation notes](BUGFIX_NOTES.md).
 
 ## Developer
 
@@ -107,3 +112,5 @@ Solvix's application source code is licensed under the [MIT License](LICENSE).
 Copyright © 2026 **Md. Shahriar Hossain**.
 
 Third-party libraries and the separately downloaded model retain their own licenses. The app's license does not replace those terms. The full app license is available offline in **Settings → About Solvix → MIT License**.
+
+The Markdown parser's [license notice](app/src/main/assets/third_party/commonmark-LICENSE.txt) is also packaged in the APK.

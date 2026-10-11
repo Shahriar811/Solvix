@@ -3,6 +3,7 @@ package com.example.task_automator
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ClipboardManager
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -62,5 +63,24 @@ class ReplyContentUiTest {
             .config[androidx.compose.ui.semantics.SemanticsProperties.Text].single()
         assertEquals(longLine, displayed.text)
         assertTrue(displayed.spanStyles.isNotEmpty())
+    }
+    @Test fun proseMarkersRenderAsFormattingAndCodeStillCopiesExactly() {
+        val code = "my_value *= 2 # *** do not remove ***"
+        answer("### **Summary**\n\n***Important*** and _clear_.\n\n* **First**\n* Second\n\n***\n\n```python\n$code\n```")
+        compose.onNodeWithText("Summary").assertExists()
+        compose.onNodeWithText("Important and clear.").assertExists()
+        compose.onNodeWithText("• First").assertExists()
+        compose.onNodeWithText("***", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithContentDescription("Copy code").performScrollTo().performClick()
+        compose.runOnIdle { assertEquals(code, clipboard.getText()?.text) }
+    }
+    @Test fun liveFormattingDoesNotShowHalfWrittenEmphasis() {
+        val streamed = mutableStateOf("**Hel")
+        compose.setContent { TaskAutomatorTheme { AssistantText(streamed.value, streaming = true) } }
+        compose.onNodeWithText("Hel").assertExists()
+        compose.runOnIdle { streamed.value = "**Hello*" }
+        compose.onNodeWithText("Hello").assertExists()
+        compose.runOnIdle { streamed.value = "**Hello**" }
+        compose.onNodeWithText("Hello").assertExists()
     }
 }
