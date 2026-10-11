@@ -13,6 +13,10 @@ You need at least 2.7 GB of additional free storage. Both routes verify the file
 
 Once setup is complete, text and image inference run locally. Authentication and other app features may still require network access. The current chat supports text, gallery images and camera snapshots; this change does not add audio recording or image generation.
 
+Camera and location permissions are requested when using those features. Notification access is optional and can be enabled from Chat; startup does not open Android settings. Chat drafts, attachments and in-flight replies survive screen rotation, but the current conversation is not saved across process termination. Failed requests retain their input for retry.
+
+The location screen shows positions and destination distances. Its notes and selected apps do not execute geofence automation or send messages automatically.
+
 ## Compatibility
 
 - Runtime: LiteRT-LM Android **0.13.1**, pinned with Kotlin **2.2.21** for the project's existing AGP 8.10.1 build tools.

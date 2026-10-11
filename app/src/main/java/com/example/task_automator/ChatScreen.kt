@@ -1,12 +1,17 @@
 package com.example.task_automator
 
+import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
@@ -43,6 +48,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import androidx.core.content.ContextCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.task_automator.helpers.GemmaModelRepository
 import com.example.task_automator.services.NotificationListener
@@ -63,13 +73,26 @@ fun ChatScreen(userName: String, onBackClicked: () -> Unit) {
     val modelViewModel: ChatModelViewModel = viewModel()
     val modelState by modelViewModel.state.collectAsState()
     val installation by GemmaModelRepository.state.collectAsState()
-    var message by remember { mutableStateOf("") }
-    val messages = remember { mutableStateListOf<String>() }
-    var errorMessage by remember { mutableStateOf<String?>(null) }
-    var selectedImage by remember { mutableStateOf<Bitmap?>(null) }
-    var isLoading by remember { mutableStateOf(false) }
+    val session = modelViewModel.session
+    val chatState by session.state.collectAsState()
+    val message = chatState.draft
+    val messages = chatState.messages
+    val errorMessage = chatState.error
+    val selectedImage = chatState.image
+    val isLoading = chatState.busy
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var notificationAccess by remember { mutableStateOf(NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)) }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                notificationAccess = NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     val modelPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { GemmaModelRepository.importModel(it) }
@@ -82,18 +105,15 @@ fun ChatScreen(userName: String, onBackClicked: () -> Unit) {
                 if (intent.action == NotificationListener.ACTION_NOTIFICATION_RECEIVED) {
                     val app = intent.getStringExtra(NotificationListener.EXTRA_NOTIFICATION_APP) ?: "App"
                     val text = intent.getStringExtra(NotificationListener.EXTRA_NOTIFICATION_TEXT) ?: ""
-                    messages.add("Notification from $app: $text")
+                    session.addMessage("Notification from $app: $text")
                 }
             }
         }
     }
 
-    LaunchedEffect(Unit) {
+    DisposableEffect(context, notificationReceiver) {
         val filter = IntentFilter(NotificationListener.ACTION_NOTIFICATION_RECEIVED)
         LocalBroadcastManager.getInstance(context).registerReceiver(notificationReceiver, filter)
-    }
-
-    DisposableEffect(Unit) {
         onDispose {
             LocalBroadcastManager.getInstance(context).unregisterReceiver(notificationReceiver)
         }
@@ -105,7 +125,7 @@ fun ChatScreen(userName: String, onBackClicked: () -> Unit) {
     ) { uri: Uri? ->
         uri?.let {
             coroutineScope.launch {
-                isLoading = true
+                session.setLoadingImage(true)
                 try {
                     val bitmap = withContext(Dispatchers.IO) {
                         @Suppress("DEPRECATION")
@@ -120,17 +140,28 @@ fun ChatScreen(userName: String, onBackClicked: () -> Unit) {
                                 )
                             }
                         } else {
-                            android.provider.MediaStore.Images.Media.getBitmap(context.contentResolver, it)
+                            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                            context.contentResolver.openInputStream(it)?.use { stream ->
+                                BitmapFactory.decodeStream(stream, null, bounds)
+                            }
+                            val options = BitmapFactory.Options()
+                            while (maxOf(bounds.outWidth, bounds.outHeight) / options.inSampleSize > 1024) {
+                                options.inSampleSize *= 2
+                            }
+                            context.contentResolver.openInputStream(it)?.use { stream ->
+                                BitmapFactory.decodeStream(stream, null, options)
+                            } ?: error("Cannot read the selected image.")
                         }
                     }
-                    selectedImage = bitmap
-                    messages.add("Image selected from gallery")
+                    session.setImage(bitmap)
+                    session.reportError(null)
+                    session.addMessage("Image selected from gallery")
                 } catch (error: CancellationException) {
                     throw error
                 } catch (error: Exception) {
-                    errorMessage = "Failed to load image: ${error.message}"
+                    session.reportError("Failed to load image: ${error.message}")
                 } finally {
-                    isLoading = false
+                    session.setLoadingImage(false)
                 }
             }
         }
@@ -141,17 +172,29 @@ fun ChatScreen(userName: String, onBackClicked: () -> Unit) {
         contract = ActivityResultContracts.TakePicturePreview()
     ) { bitmap: Bitmap? ->
         bitmap?.let {
-            selectedImage = it
-            messages.add("Image captured from camera")
-        } ?: run {
-            errorMessage = "Failed to capture image"
-            messages.add("Error: $errorMessage")
+            session.setImage(it)
+            session.reportError(null)
+            session.addMessage("Image captured from camera")
         }
     }
 
+    fun captureImage() {
+        try {
+            cameraLauncher.launch(null)
+        } catch (error: ActivityNotFoundException) {
+            session.reportError("No camera app is available. Select an image from the gallery instead.")
+        } catch (error: SecurityException) {
+            session.reportError("Camera permission is required. Enable it in Android app settings.")
+        }
+    }
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) captureImage()
+        else session.reportError("Camera permission was denied. You can still select a gallery image.")
+    }
+
     LaunchedEffect(modelState.ready) {
-        if (modelState.ready) {
-            messages.add("Welcome, $userName! Gemma 4 is ready for offline chat${if (modelState.supportsImages) " and image analysis" else ""}.")
+        if (modelState.ready && messages.isEmpty()) {
+            session.addMessage("Welcome, $userName! Gemma 4 is ready for offline chat${if (modelState.supportsImages) " and image analysis" else ""}.")
         }
     }
 
@@ -245,6 +288,16 @@ fun ChatScreen(userName: String, onBackClicked: () -> Unit) {
                 onRetryLoading = { modelViewModel.retryLoading() }
             )
 
+            if (!notificationAccess) {
+                TextButton(onClick = {
+                    try {
+                        context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                    } catch (error: ActivityNotFoundException) {
+                        session.reportError("Notification access settings are unavailable on this device.")
+                    }
+                }) { Text("Enable notification access (optional)") }
+            }
+
             // Error Banner
             AnimatedVisibility(
                 visible = errorMessage != null,
@@ -337,7 +390,8 @@ fun ChatScreen(userName: String, onBackClicked: () -> Unit) {
                             }
 
                             IconButton(
-                                onClick = { selectedImage = null },
+                                onClick = { session.setImage(null) },
+                                enabled = !isLoading,
                                 modifier = Modifier
                                     .size(32.dp)
                                     .clip(CircleShape)
@@ -372,7 +426,10 @@ fun ChatScreen(userName: String, onBackClicked: () -> Unit) {
                 ) {
                     // Camera Action Button
                     IconButton(
-                        onClick = { cameraLauncher.launch(null) },
+                        onClick = {
+                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) captureImage()
+                            else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                        },
                         enabled = modelState.ready && modelState.supportsImages && !isLoading,
                         modifier = Modifier.size(40.dp)
                     ) {
@@ -401,7 +458,7 @@ fun ChatScreen(userName: String, onBackClicked: () -> Unit) {
                     // Message Text Input
                     TextField(
                         value = message,
-                        onValueChange = { message = it },
+                        onValueChange = session::updateDraft,
                         modifier = Modifier.weight(1f),
                         placeholder = {
                             Text(
@@ -434,28 +491,7 @@ fun ChatScreen(userName: String, onBackClicked: () -> Unit) {
                                 else Brush.linearGradient(listOf(Color.Gray.copy(alpha = 0.3f), Color.Gray.copy(alpha = 0.3f)))
                             )
                             .clickable(enabled = canSend) {
-                                val userMessage = message
-                                val attachedImage = selectedImage
-                                if (userMessage.isNotBlank()) {
-                                    messages.add("You: $userMessage")
-                                }
-                                message = ""
-                                isLoading = true
-                                errorMessage = null
-
-                                coroutineScope.launch {
-                                    try {
-                                        val response = modelViewModel.generateResponse(userMessage, attachedImage)
-                                        messages.add("Bot: $response")
-                                        selectedImage = null
-                                    } catch (error: CancellationException) {
-                                        throw error
-                                    } catch (error: Exception) {
-                                        errorMessage = error.message ?: "Unable to generate a response. Please retry."
-                                    } finally {
-                                        isLoading = false
-                                    }
-                                }
+                                session.send()
                             },
                         contentAlignment = Alignment.Center
                     ) {

@@ -34,6 +34,7 @@ class SensorManagerHelper(private val context: Context) {
 
     private var isListening = false
     private val activeSensors = mutableSetOf<Int>()
+    val activeSensorTypes: List<Int> get() = activeSensors.toList()
 
     companion object {
         private const val TAG = "SensorManagerHelper"
@@ -60,7 +61,6 @@ class SensorManagerHelper(private val context: Context) {
                 currentReadings[event.sensor.type] = reading
                 _sensorReadings.value = currentReadings
 
-                Log.d(TAG, "Sensor ${event.sensor.name} updated: ${reading.formatForDisplay(SensorTypes.getSensorName(event.sensor.type))}")
             } catch (e: Exception) {
                 Log.e(TAG, "Error processing sensor data", e)
             }
@@ -162,6 +162,10 @@ class SensorManagerHelper(private val context: Context) {
 
         } catch (e: Exception) {
             Log.e(TAG, "Error starting sensors", e)
+            // Some registrations may have succeeded before another sensor failed.
+            sensorManager.unregisterListener(sensorEventListener)
+            activeSensors.clear()
+            isListening = false
             _sensorState.value = SensorState.Error("Error starting sensors: ${e.message}")
             return false
         }

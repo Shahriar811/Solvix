@@ -1,7 +1,6 @@
 package com.example.task_automator
 
 import android.app.Application
-import android.graphics.Bitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.task_automator.helpers.GemmaModelRepository
@@ -25,6 +24,7 @@ class ChatModelViewModel(application: Application) : AndroidViewModel(applicatio
     private val inference = LlmInferenceHelper()
     private val mutableState = MutableStateFlow(ChatModelState())
     val state = mutableState.asStateFlow()
+    val session = ChatSession(viewModelScope, inference::generateResponse)
 
     init {
         GemmaModelRepository.initialize(application)
@@ -40,7 +40,8 @@ class ChatModelViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun retryLoading() {
         val path = GemmaModelRepository.state.value.installedPath ?: return
-        if (mutableState.value.loading) return
+        if (mutableState.value.loading || mutableState.value.ready) return
+        mutableState.value = ChatModelState(loading = true)
         viewModelScope.launch { loadModel(path) }
     }
 
@@ -59,9 +60,6 @@ class ChatModelViewModel(application: Application) : AndroidViewModel(applicatio
             mutableState.value = ChatModelState(error = "This device does not support the AI runtime. Use a supported 64-bit Android device.")
         }
     }
-
-    suspend fun generateResponse(prompt: String, bitmap: Bitmap?): String =
-        inference.generateResponse(prompt, bitmap)
 
     override fun onCleared() {
         // The native call may still be finishing. Cleanup waits for it without blocking the UI.

@@ -1,7 +1,11 @@
 package com.example.task_automator
 
-import android.content.Intent
-import android.provider.Settings
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,6 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,7 +47,6 @@ import com.google.android.gms.maps.MapView
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MarkerOptions
-import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -50,7 +54,7 @@ import java.util.*
 fun LocationScreen(onBackClicked: () -> Unit) {
     val context = LocalContext.current
     val locationHelper = remember { LocationManagerHelper(context) }
-    val coroutineScope = rememberCoroutineScope()
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     val locationData by locationHelper.locationData.collectAsState()
     val isLocationEnabled by locationHelper.isLocationEnabled.collectAsState()
@@ -58,18 +62,24 @@ fun LocationScreen(onBackClicked: () -> Unit) {
 
     var showAddInstruction by remember { mutableStateOf(false) }
     var showAddApplication by remember { mutableStateOf(false) }
-    var instructionText by remember { mutableStateOf("") }
-    var selectedApp by remember { mutableStateOf<String?>(null) }
-    var instructions by remember { mutableStateOf(listOf<String>()) }
-    var selectedApps by remember { mutableStateOf(listOf<String>()) }
-    var selectedDestination by remember { mutableStateOf<LatLng?>(null) }
+    var instructionText by rememberSaveable { mutableStateOf("") }
+    var selectedApp by rememberSaveable { mutableStateOf<String?>(null) }
+    var instructions by rememberSaveable { mutableStateOf(listOf<String>()) }
+    var selectedApps by rememberSaveable { mutableStateOf(listOf<String>()) }
+    var selectedDestination by rememberSaveable { mutableStateOf<LatLng?>(null) }
     var distanceToDestination by remember { mutableStateOf<Float?>(null) }
-    var alwaysMyLocation by remember { mutableStateOf(true) }
+    var alwaysMyLocation by rememberSaveable { mutableStateOf(true) }
     var googleMap by remember { mutableStateOf<GoogleMap?>(null) }
 
     val mapView = remember { MapView(context) }
+    val currentLocation by rememberUpdatedState(locationData)
+    val followLocation by rememberUpdatedState(alwaysMyLocation)
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+        locationHelper.refreshStatus()
+        if (locationHelper.hasLocationPermission()) locationHelper.startLocationUpdates()
+    }
 
-    DisposableEffect(Unit) {
+    DisposableEffect(mapView, lifecycleOwner) {
         mapView.onCreate(null)
         mapView.getMapAsync { map ->
             googleMap = map
@@ -85,13 +95,13 @@ fun LocationScreen(onBackClicked: () -> Unit) {
                         .title("Destination Target")
                         .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED))
                 )
-                locationData?.let { current ->
+                currentLocation?.let { current ->
                     val dest = LocationData(latLng.latitude, latLng.longitude, 0f, "Manual")
                     distanceToDestination = current.distanceTo(dest)
                 }
             }
 
-            locationData?.let { loc ->
+            currentLocation?.let { loc ->
                 val latLng = LatLng(loc.latitude, loc.longitude)
                 map.addMarker(
                     MarkerOptions()
@@ -99,24 +109,41 @@ fun LocationScreen(onBackClicked: () -> Unit) {
                         .title("Current Location")
                         .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE))
                 )
-                if (alwaysMyLocation) {
+                if (followLocation) {
                     map.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15f))
                 }
             }
         }
 
-        if (locationHelper.hasLocationPermission()) {
-            locationHelper.startLocationUpdates()
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> mapView.onStart()
+                Lifecycle.Event.ON_RESUME -> {
+                    mapView.onResume()
+                    locationHelper.refreshStatus()
+                    if (locationHelper.hasLocationPermission()) locationHelper.startLocationUpdates()
+                }
+                Lifecycle.Event.ON_PAUSE -> {
+                    locationHelper.stopLocationUpdates()
+                    mapView.onPause()
+                }
+                Lifecycle.Event.ON_STOP -> mapView.onStop()
+                else -> Unit
+            }
         }
+        lifecycleOwner.lifecycle.addObserver(observer)
 
         onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) mapView.onPause()
+            if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) mapView.onStop()
             mapView.onDestroy()
-            locationHelper.stopLocationUpdates()
+            googleMap = null
             locationHelper.cleanup()
         }
     }
 
-    LaunchedEffect(locationData) {
+    LaunchedEffect(locationData, googleMap, selectedDestination, alwaysMyLocation) {
         googleMap?.let { map ->
             locationData?.let { loc ->
                 val latLng = LatLng(loc.latitude, loc.longitude)
@@ -153,7 +180,7 @@ fun LocationScreen(onBackClicked: () -> Unit) {
             onDismissRequest = { showAddInstruction = false },
             title = {
                 Text(
-                    text = "Add Automation Instruction",
+                    text = "Add Location Note",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
@@ -161,7 +188,7 @@ fun LocationScreen(onBackClicked: () -> Unit) {
             text = {
                 Column {
                     Text(
-                        text = "Specify an instruction to trigger when near this location:",
+                        text = "Write a note about this location. Notes do not trigger actions automatically.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -169,8 +196,8 @@ fun LocationScreen(onBackClicked: () -> Unit) {
                     SolvixTextField(
                         value = instructionText,
                         onValueChange = { instructionText = it },
-                        label = "Instruction rule",
-                        placeholder = "e.g., Send arrival notification"
+                        label = "Location note",
+                        placeholder = "e.g., Call when I arrive"
                     )
                 }
             },
@@ -209,7 +236,7 @@ fun LocationScreen(onBackClicked: () -> Unit) {
             text = {
                 Column {
                     Text(
-                        text = "Select an app to link to this geofence:",
+                        text = "Select an app to keep with your location notes:",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -494,9 +521,9 @@ fun LocationScreen(onBackClicked: () -> Unit) {
                                         color = MaterialTheme.colorScheme.onBackground
                                     )
                                     val formattedDist = if (dist >= 1000f) {
-                                        "${String.format("%.2f", dist / 1000f)} km away"
+                                        "${String.format(java.util.Locale.getDefault(), "%.2f", dist / 1000f)} km away"
                                     } else {
-                                        "${String.format("%.1f", dist)} meters away"
+                                        "${String.format(java.util.Locale.getDefault(), "%.1f", dist)} meters away"
                                     }
                                     Text(
                                         text = formattedDist,
@@ -528,12 +555,12 @@ fun LocationScreen(onBackClicked: () -> Unit) {
                 ) {
                     LocationStatTile(
                         label = "Latitude",
-                        value = locationData?.let { String.format("%.5f", it.latitude) } ?: "--",
+                        value = locationData?.let { String.format(java.util.Locale.getDefault(), "%.5f", it.latitude) } ?: "--",
                         modifier = Modifier.weight(1f)
                     )
                     LocationStatTile(
                         label = "Longitude",
-                        value = locationData?.let { String.format("%.5f", it.longitude) } ?: "--",
+                        value = locationData?.let { String.format(java.util.Locale.getDefault(), "%.5f", it.longitude) } ?: "--",
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -546,7 +573,7 @@ fun LocationScreen(onBackClicked: () -> Unit) {
                 ) {
                     LocationStatTile(
                         label = "Accuracy",
-                        value = locationData?.let { "±${String.format("%.1f", it.accuracy)}m" } ?: "--",
+                        value = locationData?.let { "±${String.format(java.util.Locale.getDefault(), "%.1f", it.accuracy)}m" } ?: "--",
                         modifier = Modifier.weight(1f)
                     )
                     LocationStatTile(
@@ -607,19 +634,16 @@ fun LocationScreen(onBackClicked: () -> Unit) {
                 }
 
                 // Permission or GPS Enable Button if not granted
-                if (!isLocationEnabled || permissionStatus != "Granted") {
+                if (!isLocationEnabled || !locationHelper.hasLocationPermission()) {
                     Surface(
                         modifier = Modifier
                             .weight(1.2f)
                             .height(48.dp)
                             .clip(RoundedCornerShape(14.dp))
                             .clickable {
-                                coroutineScope.launch {
-                                    if (!locationHelper.isLocationEnabled.value) {
-                                        val intent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
-                                        context.startActivity(intent)
-                                    }
-                                }
+                                if (!locationHelper.hasLocationPermission()) {
+                                    permissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                                } else locationHelper.enableLocationServices()
                             },
                         shape = RoundedCornerShape(14.dp),
                         color = ElectricIndigo.copy(alpha = 0.15f),
@@ -658,7 +682,7 @@ fun LocationScreen(onBackClicked: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Geofence Rules & Apps",
+                        text = "Location Notes & Apps",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground
@@ -701,7 +725,7 @@ fun LocationScreen(onBackClicked: () -> Unit) {
 
                 if (instructions.isEmpty() && selectedApps.isEmpty()) {
                     Text(
-                        text = "No automation rules or linked apps added yet. Tap the buttons above to configure rules.",
+                        text = "No location notes or apps added yet. Notes do not trigger automatic actions.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

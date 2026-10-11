@@ -38,7 +38,7 @@ import com.example.task_automator.ui.theme.*
 
 @Composable
 fun SignupScreen(
-    onSignupClicked: (String, String, String) -> Unit,
+    onSignupClicked: (String, String, String, () -> Unit) -> Unit,
     onNavigateToLogin: () -> Unit
 ) {
     var username by remember { mutableStateOf("") }
@@ -53,6 +53,7 @@ fun SignupScreen(
 
     var passwordVisible by remember { mutableStateOf(false) }
     var confirmPasswordVisible by remember { mutableStateOf(false) }
+    var isSigningUp by remember { mutableStateOf(false) }
 
     val themeMode by ThemeManager.themeMode.collectAsState()
     val isSystemDark = isSystemInDarkTheme()
@@ -237,9 +238,11 @@ fun SignupScreen(
                     }
 
                     if (valid) {
-                        onSignupClicked(username, email, password)
+                        isSigningUp = true
+                        onSignupClicked(username.trim(), email.trim(), password) { isSigningUp = false }
                     }
                 },
+                isLoading = isSigningUp,
                 modifier = Modifier.fillMaxWidth()
             )
 

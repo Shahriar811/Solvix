@@ -1,6 +1,8 @@
 package com.example.task_automator
 
 import android.util.Log
+import android.app.Activity
+import android.content.ActivityNotFoundException
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -81,12 +83,21 @@ fun LoginScreen(
     val googleSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
+        if (result.resultCode != Activity.RESULT_OK) {
+            isSigningIn = false
+            return@rememberLauncherForActivityResult
+        }
         val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
         try {
-            val account: GoogleSignInAccount = task.getResult(ApiException::class.java)!!
-            Log.d("LOGIN_GOOGLE", "firebaseAuthWithGoogle:${account.id}")
+            val account = task.getResult(ApiException::class.java)
+            val token = account?.idToken
+            if (token.isNullOrBlank()) {
+                isSigningIn = false
+                onGoogleSignInFailed("Google did not return a sign-in token. Please try again.")
+                return@rememberLauncherForActivityResult
+            }
             firebaseAuthWithGoogle(
-                account.idToken!!,
+                token,
                 firebaseAuth,
                 onSuccess = {
                     isSigningIn = false
@@ -284,9 +295,14 @@ fun LoginScreen(
                     .fillMaxWidth()
                     .height(52.dp)
                     .clip(RoundedCornerShape(16.dp))
-                    .clickable {
+                    .clickable(enabled = !isSigningIn) {
                         isSigningIn = true
-                        googleSignInLauncher.launch(googleSignInClient.signInIntent)
+                        try {
+                            googleSignInLauncher.launch(googleSignInClient.signInIntent)
+                        } catch (error: ActivityNotFoundException) {
+                            isSigningIn = false
+                            onGoogleSignInFailed("Google Sign-In is unavailable on this device. Use email or guest mode.")
+                        }
                     },
                 shape = RoundedCornerShape(16.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant,

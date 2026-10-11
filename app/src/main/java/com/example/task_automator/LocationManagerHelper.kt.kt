@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
 import androidx.core.content.ContextCompat
+import androidx.core.location.LocationManagerCompat
 import com.example.task_automator.data.LocationData
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -47,13 +48,12 @@ class LocationManagerHelper(private val context: Context) {
      */
     private val locationListener = object : LocationListener {
         override fun onLocationChanged(location: Location) {
-            Log.d(TAG, "Location updated: ${location.latitude}, ${location.longitude}")
-
             val locationData = LocationData(
                 latitude = location.latitude,
                 longitude = location.longitude,
                 accuracy = location.accuracy,
-                provider = location.provider ?: "Unknown"
+                provider = location.provider ?: "Unknown",
+                timestamp = location.time
             )
 
             _locationData.value = locationData
@@ -103,9 +103,7 @@ class LocationManagerHelper(private val context: Context) {
      * Check if location services are enabled
      */
     private fun checkLocationSettings() {
-        val isGpsEnabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
-        val isNetworkEnabled = locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
-        _isLocationEnabled.value = isGpsEnabled || isNetworkEnabled
+        _isLocationEnabled.value = LocationManagerCompat.isLocationEnabled(locationManager)
     }
 
     /**
@@ -138,6 +136,7 @@ class LocationManagerHelper(private val context: Context) {
 
         try {
             if (hasLocationPermission()) {
+                getCurrentLocation()?.let { _locationData.value = it }
                 val providers = getAvailableProviders()
                 if (providers.isNotEmpty()) {
                     for (provider in providers) {
@@ -147,6 +146,7 @@ class LocationManagerHelper(private val context: Context) {
                             MIN_DISTANCE_CHANGE_FOR_UPDATES,
                             locationListener
                         )
+                        isListening = true
                     }
                     isListening = true
                     Log.d(TAG, "Started location updates")
@@ -158,6 +158,8 @@ class LocationManagerHelper(private val context: Context) {
             }
         } catch (e: SecurityException) {
             Log.e(TAG, "Security exception starting location updates", e)
+            stopLocationUpdates()
+            checkPermissions()
         }
     }
 
@@ -255,7 +257,9 @@ class LocationManagerHelper(private val context: Context) {
      */
     fun getAvailableProviders(): List<String> {
         return try {
-            locationManager.getProviders(true)
+            locationManager.getProviders(true).filter {
+                it == LocationManager.GPS_PROVIDER || it == LocationManager.NETWORK_PROVIDER
+            }
         } catch (e: Exception) {
             Log.e(TAG, "Error getting available providers", e)
             emptyList()

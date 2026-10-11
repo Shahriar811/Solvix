@@ -1,6 +1,9 @@
 package com.example.task_automator
 
 import android.hardware.Sensor
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -50,8 +53,25 @@ fun SensorScreen(onBackClicked: () -> Unit) {
     var selectedSensors by remember { mutableStateOf(setOf<Int>()) }
     var showSensorFilters by remember { mutableStateOf(false) }
 
-    DisposableEffect(Unit) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, sensorHelper) {
+        var pausedSensors = emptyList<Int>()
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_PAUSE -> {
+                    pausedSensors = sensorHelper.activeSensorTypes
+                    sensorHelper.stopSensors()
+                }
+                Lifecycle.Event.ON_RESUME -> {
+                    if (pausedSensors.isNotEmpty()) sensorHelper.startSensors(pausedSensors)
+                    pausedSensors = emptyList()
+                }
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
             sensorHelper.cleanup()
         }
     }
@@ -613,7 +633,7 @@ private fun AxisPill(
         }
         Spacer(modifier = Modifier.width(6.dp))
         Text(
-            text = String.format("%.2f", value),
+            text = String.format(java.util.Locale.getDefault(), "%.2f", value),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
             fontFamily = FontFamily.Monospace,

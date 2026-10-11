@@ -4,7 +4,6 @@ import android.app.Notification
 import android.content.Intent
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
-import android.util.Log
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 
 class NotificationListener : NotificationListenerService() {
@@ -22,13 +21,11 @@ class NotificationListener : NotificationListenerService() {
             val extras = notification.extras
 
             // Extract notification details
-            val title = extras.getString(Notification.EXTRA_TITLE) ?: "No Title"
-            val text = extras.getString(Notification.EXTRA_TEXT) ?: "No Text"
+            val title = extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: "No Title"
+            val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: "No Text"
 
             // Filter for specific apps
             if (packageName in listOf("com.whatsapp", "org.telegram.messenger", "com.google.android.gm")) {
-                Log.d("NotificationListener", "Notification from $packageName: $title - $text")
-
                 // Send notification data to ChatScreen via LocalBroadcastManager
                 val intent = Intent(ACTION_NOTIFICATION_RECEIVED).apply {
                     putExtra(EXTRA_NOTIFICATION_APP, packageName)

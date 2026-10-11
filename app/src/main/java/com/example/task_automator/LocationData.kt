@@ -14,7 +14,7 @@ data class LocationData(
      * Format location for display
      */
     fun formatForDisplay(): String {
-        return "Lat: ${String.format("%.6f", latitude)}, Lng: ${String.format("%.6f", longitude)}"
+        return "Lat: ${String.format(java.util.Locale.getDefault(), "%.6f", latitude)}, Lng: ${String.format(java.util.Locale.getDefault(), "%.6f", longitude)}"
     }
 
     /**

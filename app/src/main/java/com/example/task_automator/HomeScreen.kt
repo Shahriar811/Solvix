@@ -294,7 +294,7 @@ fun HomeScreen(
                 iconTint = ElectricIndigo,
                 title = "AI Chat & Vision",
                 description = "Interactive assistant with real-time multimodal image analysis & notifications",
-                badgeText = "LLM Ready",
+                badgeText = "Open chat",
                 badgeColor = ElectricIndigo,
                 onClick = onChatClicked
             )
@@ -316,9 +316,9 @@ fun HomeScreen(
             DashboardServiceCard(
                 icon = Icons.Default.LocationOn,
                 iconTint = EmeraldSuccess,
-                title = "Location & Geofencing",
-                description = "Real-time GPS tracking, interactive destination routing & app automation rules",
-                badgeText = "GPS Active",
+                title = "Location & Destinations",
+                description = "View your location, choose a destination and measure its distance",
+                badgeText = "Open map",
                 badgeColor = EmeraldSuccess,
                 onClick = onLocationClicked
             )
@@ -414,8 +414,8 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     DiagnosticItem(label = "Intelligence", value = "Gemma 4 E2B", color = ElectricIndigo)
-                    DiagnosticItem(label = "Telemetry", value = "Online", color = CyberCyan)
-                    DiagnosticItem(label = "Geofence", value = "Active", color = EmeraldSuccess)
+                    DiagnosticItem(label = "Telemetry", value = "Sensor tools", color = CyberCyan)
+                    DiagnosticItem(label = "Location", value = "Map tools", color = EmeraldSuccess)
                 }
             }
 

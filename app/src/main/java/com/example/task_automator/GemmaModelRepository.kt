@@ -42,6 +42,7 @@ object GemmaModelRepository {
     val state = mutableState.asStateFlow()
     private lateinit var appContext: Context
     private var operation: Job? = null
+    @Volatile private var cancelling = false
     private val preferences get() = appContext.getSharedPreferences("gemma4_model", Context.MODE_PRIVATE)
     private val downloads get() = appContext.getSystemService(DownloadManager::class.java)
     private val directory get() = (appContext.getExternalFilesDir("models")
@@ -57,7 +58,8 @@ object GemmaModelRepository {
             try {
                 if (modelFile.isFile) {
                     // Skip rehashing 2.59 GB only if the previously verified file is unchanged.
-                    if (modelFile.length() != preferences.getLong("verified_size", -1) ||
+                    if (modelFile.length() != MODEL_SIZE ||
+                        modelFile.length() != preferences.getLong("verified_size", -1) ||
                         modelFile.lastModified() != preferences.getLong("verified_modified", -1)) {
                         verify(modelFile)
                         saveVerification()
@@ -79,7 +81,7 @@ object GemmaModelRepository {
 
     @Synchronized
     fun download(wifiOnly: Boolean = true) {
-        if (mutableState.value.busy || mutableState.value.installedPath != null) return
+        if (cancelling || mutableState.value.busy || mutableState.value.installedPath != null) return
         mutableState.value = ModelInstallState(busy = true, canCancel = true, label = "Starting download…")
         operation = scope.launch {
             try {
@@ -90,6 +92,8 @@ object GemmaModelRepository {
                     .setDescription("Downloading the offline AI model (2.59 GB)")
                     .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                     .setAllowedOverMetered(!wifiOnly)
+                    .setAllowedNetworkTypes(if (wifiOnly) DownloadManager.Request.NETWORK_WIFI
+                        else DownloadManager.Request.NETWORK_WIFI or DownloadManager.Request.NETWORK_MOBILE)
                     .setAllowedOverRoaming(false)
                     .setDestinationUri(Uri.fromFile(partialFile))
                 val id = downloads.enqueue(request)
@@ -103,17 +107,21 @@ object GemmaModelRepository {
 
     @Synchronized
     fun importModel(uri: Uri) {
-        if (mutableState.value.busy || mutableState.value.installedPath != null) return
+        if (cancelling || mutableState.value.busy || mutableState.value.installedPath != null) return
         mutableState.value = ModelInstallState(busy = true, canCancel = true, label = "Importing model…", progress = 0f)
         operation = scope.launch {
             try {
                 val resolver = appContext.contentResolver
                 resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { cursor ->
                     if (cursor.moveToFirst()) {
-                        require(cursor.getString(0).endsWith(".litertlm", ignoreCase = true)) {
+                        val nameColumn = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                        val sizeColumn = cursor.getColumnIndex(OpenableColumns.SIZE)
+                        val name = if (nameColumn >= 0 && !cursor.isNull(nameColumn)) cursor.getString(nameColumn) else null
+                        require(name?.endsWith(".litertlm", ignoreCase = true) != false) {
                             "Select gemma-4-E2B-it.litertlm. The old .task models are no longer used."
                         }
-                        if (!cursor.isNull(1)) require(cursor.getLong(1) == MODEL_SIZE) {
+                        val declaredSize = if (sizeColumn >= 0 && !cursor.isNull(sizeColumn)) cursor.getLong(sizeColumn) else -1L
+                        if (declaredSize >= 0) require(declaredSize == MODEL_SIZE) {
                             "Select gemma-4-E2B-it.litertlm (2.59 GB), rather than an Intel, Tensor, Qualcomm or web variant."
                         }
                     }
@@ -130,7 +138,7 @@ object GemmaModelRepository {
                             copied += count
                             require(copied <= MODEL_SIZE) { "Select the standard Gemma 4 E2B bundle (2.59 GB)." }
                             output.write(buffer, 0, count)
-                            mutableState.value = mutableState.value.copy(progress = copied.toFloat() / MODEL_SIZE)
+                            if (!cancelling) mutableState.value = mutableState.value.copy(progress = copied.toFloat() / MODEL_SIZE)
                         }
                     }
                 } ?: throw IOException("Cannot open the selected model. Please select it again.")
@@ -143,14 +151,22 @@ object GemmaModelRepository {
 
     @Synchronized
     fun cancel() {
-        if (!mutableState.value.canCancel) return
+        if (cancelling || !mutableState.value.canCancel) return
+        cancelling = true
         val previousOperation = operation
-        mutableState.value = mutableState.value.copy(canCancel = false, label = "Cancelling…")
+        mutableState.value = mutableState.value.copy(busy = true, canCancel = false, label = "Cancelling…")
         operation = scope.launch {
-            previousOperation?.cancelAndJoin()
-            clearDownload()
-            partialFile.delete()
-            mutableState.value = ModelInstallState(label = "Cancelled. You can download or import again.")
+            try {
+                previousOperation?.cancelAndJoin()
+                clearDownload()
+                partialFile.delete()
+                if (modelFile.isFile) publishInstalled()
+                else mutableState.value = ModelInstallState(label = "Cancelled. You can download or import again.")
+            } catch (error: Exception) {
+                mutableState.value = ModelInstallState(error = "Could not cancel the download: ${error.message}")
+            } finally {
+                cancelling = false
+            }
         }
     }
 
@@ -175,7 +191,7 @@ object GemmaModelRepository {
                             "Not enough storage. Free at least 2.7 GB and retry."
                         else "Download failed ($reason). Check your connection and retry, or import the file.")
                     }
-                    else -> mutableState.value = ModelInstallState(
+                    else -> if (!cancelling) mutableState.value = ModelInstallState(
                         busy = true, canCancel = true, progress = progress,
                         label = when (status) {
                             DownloadManager.STATUS_PAUSED -> "Waiting for Wi-Fi or connection — download will resume…"
@@ -200,11 +216,12 @@ object GemmaModelRepository {
     }
 
     private suspend fun verify(file: File) {
-        mutableState.value = ModelInstallState(busy = true, canCancel = file == partialFile, label = "Verifying model…", progress = 0f)
+        currentCoroutineContext().ensureActive()
+        if (!cancelling) mutableState.value = ModelInstallState(busy = true, canCancel = file == partialFile, label = "Verifying model…", progress = 0f)
         val coroutineContext = currentCoroutineContext()
         ModelIntegrity.verify(file, MODEL_SIZE, MODEL_SHA256) { bytes ->
             coroutineContext.ensureActive()
-            mutableState.value = mutableState.value.copy(progress = bytes.toFloat() / MODEL_SIZE)
+            if (!cancelling) mutableState.value = mutableState.value.copy(progress = bytes.toFloat() / MODEL_SIZE)
         }
     }
 
@@ -229,8 +246,11 @@ object GemmaModelRepository {
         preferences.edit().remove("download_id").commit()
     }
 
-    private fun handleFailure(error: Exception) {
+    private suspend fun handleFailure(error: Exception) {
         if (error is CancellationException) throw error
+        // A cancelled stream can throw IOException; do not publish idle or delete files
+        // while cancel() is still joining this operation.
+        currentCoroutineContext().ensureActive()
         clearDownload()
         partialFile.delete()
         // A modified or incomplete installed file must not prevent a clean retry.

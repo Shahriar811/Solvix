@@ -16,7 +16,7 @@ data class SensorReading(
             "Proximity" -> "$sensorName: Distance=${x} cm"
             "Light" -> "$sensorName: Illuminance=${x} lux"
             "Pressure" -> "$sensorName: Pressure=${x} hPa"
-            else -> "$sensorName: X=${String.format("%.2f", x)}, Y=${String.format("%.2f", y)}, Z=${String.format("%.2f", z)}"
+            else -> "$sensorName: X=${String.format(java.util.Locale.getDefault(), "%.2f", x)}, Y=${String.format(java.util.Locale.getDefault(), "%.2f", y)}, Z=${String.format(java.util.Locale.getDefault(), "%.2f", z)}"
         }
     }
 }
