@@ -55,3 +55,11 @@ Local tests cover retention, pinning, deletion, persistence, photo cleanup, stre
 - [GitHub profile — @Shahriar811](https://github.com/Shahriar811)
 - [Source code](https://github.com/Shahriar811/Solvix)
 - [Report an issue](https://github.com/Shahriar811/Solvix/issues)
+
+## License
+
+Solvix's application source code is licensed under the [MIT License](LICENSE).
+
+Copyright © 2026 **Md. Shahriar Hossain**.
+
+Third-party libraries and the separately downloaded model retain their own licenses. The app's license does not replace those terms. The full app license is available offline in **Settings → About Solvix → MIT License**.

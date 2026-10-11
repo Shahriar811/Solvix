@@ -44,6 +44,8 @@ import com.example.task_automator.ui.theme.AppThemeMode
 import com.example.task_automator.ui.theme.ThemeManager
 import java.io.File
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -57,6 +59,15 @@ fun ChatScreen() {
     val scope = rememberCoroutineScope()
     val drawer = rememberDrawerState(DrawerValue.Closed)
     var settings by rememberSaveable { mutableStateOf(false) }
+    var showLicense by rememberSaveable { mutableStateOf(false) }
+    var licenseText by remember { mutableStateOf("") }
+    LaunchedEffect(showLicense) {
+        if (showLicense && licenseText.isEmpty()) {
+            licenseText = withContext(Dispatchers.IO) {
+                context.assets.open("LICENSE").bufferedReader().use { it.readText() }
+            }
+        }
+    }
     var attachments by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<SavedChat?>(null) }
     val listState = rememberLazyListState()
@@ -242,9 +253,19 @@ fun ChatScreen() {
                     } catch (_: ActivityNotFoundException) {
                         vm.session.reportError("No browser is available to open the GitHub profile.")
                     }
-                })
+                }, onOpenLicense = { showLicense = true })
             }
         }
+    }
+    if (showLicense) {
+        AlertDialog(onDismissRequest = { showLicense = false }, title = { Text("MIT License") },
+            text = {
+                SelectionContainer {
+                    Text(licenseText.ifEmpty { "Loading license…" }, style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState()))
+                }
+            },
+            confirmButton = { TextButton(onClick = { showLicense = false }) { Text("Close") } })
     }
     deleting?.let { selected ->
         AlertDialog(onDismissRequest = { deleting = null }, title = { Text("Delete chat?") },
