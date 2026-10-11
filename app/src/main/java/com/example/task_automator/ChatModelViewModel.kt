@@ -9,19 +9,25 @@ import android.os.Build
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.task_automator.helpers.OfflineModelRepository
+import com.example.task_automator.helpers.ModelCatalog
+import com.example.task_automator.helpers.ModelCompatibility
 import com.example.task_automator.helpers.LlmInferenceHelper
 import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-
-data class ChatModelState(val loading: Boolean = false, val ready: Boolean = false, val supportsImages: Boolean = false, val error: String? = null)
+import kotlinx.coroutines.flow.first
 
 class ChatModelViewModel(application: Application) : AndroidViewModel(application) {
     private val inference = LlmInferenceHelper()
     val history = ChatHistoryStore(application.noBackupFilesDir.resolve("chats"))
-    private val mutableState = MutableStateFlow(ChatModelState())
-    val state = mutableState.asStateFlow()
+    private val runtime = ModelRuntimeController(viewModelScope,
+        path = { OfflineModelRepository.state.value.installedModels[it] },
+        load = { model, path ->
+            inference.initialize(application, path, model)
+            inference.supportsImages
+        },
+        commit = OfflineModelRepository::confirmActive
+    )
+    val state = runtime.state
     val session = ChatSession(viewModelScope,
         respond = { chat, prompt, imageName, emit ->
             inference.streamResponse(chat.id, chat.messages, prompt, imageName, history::imageFile, emit)
@@ -35,10 +41,19 @@ class ChatModelViewModel(application: Application) : AndroidViewModel(applicatio
 
     init {
         loadHistory()
+        viewModelScope.launch {
+            var previousModelId: String? = null
+            state.collect { current ->
+                if (current.ready && current.modelId != previousModelId) {
+                    if (!current.supportsImages && (session.state.value.imageName != null || session.state.value.current.messages.any { it.imageName != null })) session.newChat()
+                    previousModelId = current.modelId
+                }
+            }
+        }
         OfflineModelRepository.initialize(application)
         viewModelScope.launch {
             OfflineModelRepository.state.collect { installation ->
-                if (installation.installedPath != null && !state.value.ready && !state.value.loading && state.value.error == null) loadModel(installation.installedPath)
+                if (installation.initialized && installation.installedPath != null && !state.value.ready && !state.value.loading && state.value.error == null) runtime.use(installation.activeModelId)
             }
         }
     }
@@ -58,20 +73,24 @@ class ChatModelViewModel(application: Application) : AndroidViewModel(applicatio
             finally { loadingHistory = false }
         }
     }
-    fun retryLoading() {
-        val path = OfflineModelRepository.state.value.installedPath ?: return
-        if (state.value.loading || state.value.ready) return
-        mutableState.value = ChatModelState(loading = true)
-        viewModelScope.launch { loadModel(path) }
+    fun importModel(uri: Uri, id: String) {
+        viewModelScope.launch {
+            if (!OfflineModelRepository.state.value.initialized) OfflineModelRepository.state.first { it.initialized }
+            if (OfflineModelRepository.state.value.busy) session.reportError("Another model installation is in progress. Wait or cancel it first.")
+            else OfflineModelRepository.importModel(uri, id)
+        }
     }
-    private suspend fun loadModel(path: String) {
-        mutableState.value = ChatModelState(loading = true)
-        try {
-            inference.initialize(getApplication(), path)
-            mutableState.value = ChatModelState(ready = true, supportsImages = inference.supportsImages)
-        } catch (error: CancellationException) { throw error }
-        catch (error: Exception) { mutableState.value = ChatModelState(error = "The offline assistant could not load. Close other apps and try again.") }
-        catch (error: UnsatisfiedLinkError) { mutableState.value = ChatModelState(error = "The offline assistant needs a supported 64-bit device.") }
+    fun removeModel(id: String) {
+        if (session.state.value.busy || state.value.loading) return
+        OfflineModelRepository.remove(id, state.value.modelId.takeIf { state.value.ready })
+    }
+    fun retryLoading() { useModel(OfflineModelRepository.state.value.activeModelId) }
+    fun useModel(id: String) {
+        if (session.state.value.busy || state.value.loading || OfflineModelRepository.state.value.busy) return
+        val hardware = OfflineModelRepository.state.value.hardware ?: return
+        val check = ModelCompatibility.assess(ModelCatalog.find(id), hardware, installed = true)
+        if (!check.allowed) { session.reportError(check.reasons.joinToString(" ")); return }
+        runtime.use(id)
     }
     fun attach(uri: Uri) = loadAttachment {
         val resolver = getApplication<Application>().contentResolver

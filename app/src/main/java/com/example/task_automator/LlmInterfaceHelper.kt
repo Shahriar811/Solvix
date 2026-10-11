@@ -17,14 +17,20 @@ class LlmInferenceHelper {
     private val mutex = Mutex()
     private var engine: Engine? = null
     private var conversation: Conversation? = null
+    private var profile: ModelSpec = ModelCatalog.default
     private var chatId: String? = null
     private var cachedHistory: List<Triple<ChatRole, String, String?>> = emptyList()
     var supportsImages = false
         private set
 
-    suspend fun initialize(context: Context, modelPath: String) = withContext(Dispatchers.IO) {
+    suspend fun initialize(context: Context, modelPath: String, model: ModelSpec = ModelCatalog.default) = withContext(Dispatchers.IO) {
         mutex.withLock {
             closeResources()
+            profile = model
+            if (!model.supportsImages) {
+                openEngine(context, modelPath, false)
+                return@withLock
+            }
             try {
                 openEngine(context, modelPath, true)
                 supportsImages = true
@@ -37,10 +43,10 @@ class LlmInferenceHelper {
     }
     private fun openEngine(context: Context, path: String, vision: Boolean) {
         val candidate = Engine(EngineConfig(
-            modelPath = path, backend = Backend.CPU(numOfThreads = 4),
+            modelPath = path, backend = Backend.CPU(threadCount = 4),
             visionBackend = if (vision) Backend.GPU() else null,
-            maxNumTokens = 4096, maxNumImages = 1,
-            cacheDir = context.cacheDir.resolve("gemma4").apply { mkdirs() }.absolutePath
+            maxNumTokens = profile.contextTokens, maxNumImages = 1,
+            cacheDir = if (profile.disableCache) ":nocache" else context.cacheDir.resolve("models-v018/${profile.id}").apply { mkdirs() }.absolutePath
         ))
         try { candidate.initialize(); engine = candidate }
         catch (error: Exception) { if (candidate.isInitialized()) candidate.close(); throw error }
@@ -49,7 +55,10 @@ class LlmInferenceHelper {
         systemInstruction = Contents.of("You are Solvix, a helpful on-device assistant. Give clear, concise answers."),
         initialMessages = history,
         samplerConfig = SamplerConfig(topK = 40, topP = 0.95, temperature = 0.7),
-        extraContext = mapOf("enable_thinking" to false)
+        extraContext = mapOf("enable_thinking" to profile.reasoning),
+        thinkingConfig = ThinkingConfig(enableThinking = profile.reasoning, thinkingTokenBudget = if (profile.reasoning) 2048 else -1),
+        automaticToolCalling = false,
+        enableSpeculativeDecoding = false
     ))
     private fun contents(text: String, image: ByteArray?): Contents {
         val values = mutableListOf<Content>()

@@ -12,7 +12,7 @@ object ModelIntegrity {
         onProgress: (Long) -> Unit = {}
     ) {
         require(file.isFile && file.length() == expectedSize) {
-            "This is not the complete offline model. Select the standard .litertlm file (2.59 GB)."
+            "This file does not match the selected model's expected size. Import the original complete .litertlm bundle."
         }
         val digest = MessageDigest.getInstance("SHA-256")
         file.inputStream().buffered().use { input ->

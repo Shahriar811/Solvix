@@ -13,13 +13,14 @@ Developed by **[Md. Shahriar Hossain](https://github.com/Shahriar811)**.
 - **Streaming answers**, a stop button, text selection and copy controls.
 - **Local chat history** that keeps your 10 most recent unpinned conversations.
 - **Pinned conversations** that stay until you explicitly delete them.
-- **Model download or import** from Settings.
+- **Six-model library** with model import, Hugging Face download and switching.
+- **Hardware preflight** for CPU architecture, Android, RAM and storage before installation.
 - **Developer information** and a GitHub profile link in Settings → About Solvix.
 
 ## Get started
 
 1. Install Solvix and open Settings from the three-dot menu.
-2. Under **Offline assistant**, choose **Download** or **Import**. Allow at least 2.7 GB of free space for the 2.59 GB model. Downloads use Wi-Fi by default.
+2. Under **Models**, expand the default or another model, then choose **Download** or **Import**. Review the hardware estimate and required storage. Downloads use Wi-Fi by default. Choose **Use model** after installation.
 3. Once setup finishes, start chatting. Use **+** to choose or capture a photo on devices that support image analysis.
 
 Model setup instructions, runtime requirements and the verified download source are in [MODEL_SETUP.md](MODEL_SETUP.md).
@@ -40,13 +41,13 @@ Model and answer-quality settings are unchanged. Hardware speed has not been ben
 
 ## Build and validation
 
-The project uses Kotlin 2.2.21, Android Gradle Plugin 8.10.1 and LiteRT-LM 0.13.1. Configure a compatible JDK and Android SDK, then run:
+The project uses Kotlin 2.4.0, Android Gradle Plugin 8.10.1, D8/R8 9.1.56 and LiteRT-LM 0.18.0. Configure a compatible JDK and Android SDK, then run:
 
 ```powershell
 .\gradlew.bat :app:assembleDebug :app:testDebugUnitTest :app:lintDebug :app:compileDebugAndroidTestKotlin
 ```
 
-Local tests cover retention, pinning, deletion, persistence, photo cleanup, streaming, stopping and model integrity. Device tests and hardware benchmarks run separately.
+Local tests cover retention, pinning, deletion, persistence, photo cleanup, streaming, stopping, model integrity, hardware policy, model switching/rollback and model-library controls. Device tests and hardware benchmarks run separately.
 
 ## Developer
 

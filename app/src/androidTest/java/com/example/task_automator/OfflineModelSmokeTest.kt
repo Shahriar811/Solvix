@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import androidx.test.platform.app.InstrumentationRegistry
 import com.example.task_automator.helpers.OfflineModelRepository
+import com.example.task_automator.helpers.ModelCatalog
 import com.example.task_automator.helpers.LlmInferenceHelper
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -18,17 +19,17 @@ class OfflineModelSmokeTest {
         assumeTrue(InstrumentationRegistry.getArguments().getString("runModelSmokeTest") == "true")
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         OfflineModelRepository.initialize(context)
-        withTimeout(60_000) { OfflineModelRepository.state.first { !it.busy } }
-        if (OfflineModelRepository.state.value.installedPath == null) {
+        withTimeout(60_000) { OfflineModelRepository.state.first { it.initialized && !it.busy } }
+        if (ModelCatalog.DEFAULT_ID !in OfflineModelRepository.state.value.installedModels) {
             OfflineModelRepository.download(wifiOnly = true)
         }
         val installation = withTimeout(20 * 60_000) {
-            OfflineModelRepository.state.first { !it.busy }
+            OfflineModelRepository.state.first { it.initialized && !it.busy }
         }
-        checkNotNull(installation.installedPath) { installation.error ?: "Model is not installed." }
+        val defaultPath = checkNotNull(installation.installedModels[ModelCatalog.DEFAULT_ID]) { installation.error ?: "Model is not installed." }
         val inference = LlmInferenceHelper()
         try {
-            inference.initialize(context, installation.installedPath)
+            inference.initialize(context, defaultPath)
             val text = inference.generateResponse("What is 2 plus 2? Answer in one short sentence.")
             assertTrue("Unexpected text response: $text", text.contains("4") || text.contains("four", ignoreCase = true))
             assertTrue("Vision backend did not initialize on the test device", inference.supportsImages)

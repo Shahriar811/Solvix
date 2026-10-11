@@ -37,7 +37,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.example.task_automator.helpers.OfflineModelRepository
-import com.example.task_automator.ui.components.ModelSetupPanel
+import com.example.task_automator.ui.components.ModelLibraryPanel
+import com.example.task_automator.helpers.ModelCatalog
 import com.example.task_automator.ui.components.AboutSection
 import com.example.task_automator.ui.components.DEVELOPER_GITHUB_URL
 import com.example.task_automator.ui.theme.AppThemeMode
@@ -53,6 +54,7 @@ fun ChatScreen() {
     val vm: ChatModelViewModel = viewModel()
     val chat by vm.session.state.collectAsState()
     val runtime by vm.state.collectAsState()
+    val photoModelRequired = runtime.ready && !runtime.supportsImages && chat.current.messages.any { it.imageName != null }
     val installation by OfflineModelRepository.state.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -70,7 +72,9 @@ fun ChatScreen() {
     var attachments by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<SavedChat?>(null) }
     val listState = rememberLazyListState()
-    val modelPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { OfflineModelRepository.importModel(it) } }
+    var importModelId by rememberSaveable { mutableStateOf(ModelCatalog.DEFAULT_ID) }
+    val modelPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { vm.importModel(it, importModelId) } }
+    LaunchedEffect(settings) { if (settings) OfflineModelRepository.refreshHardware() }
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> uri?.let(vm::attach) }
     val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap -> bitmap?.let(vm::attach) }
     fun capture() {
@@ -166,14 +170,14 @@ fun ChatScreen() {
                             TextField(
                                 value = if (chat.sending) "" else chat.draft, onValueChange = vm.session::updateDraft,
                                 placeholder = { Text("Message Solvix") }, modifier = Modifier.weight(1f), maxLines = 5,
-                                enabled = runtime.ready && chat.historyReady && !chat.busy,
+                                enabled = runtime.ready && !photoModelRequired && chat.historyReady && !chat.busy,
                                 colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, disabledContainerColor = Color.Transparent,
                                     focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, disabledIndicatorColor = Color.Transparent),
                                 textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp)
                             )
                             FilledIconButton(
                                 onClick = { if (chat.sending) vm.session.stop() else vm.session.send() },
-                                enabled = chat.sending || (runtime.ready && chat.historyReady && !chat.busy && (chat.draft.isNotBlank() || chat.imageName != null)),
+                                enabled = chat.sending || (runtime.ready && !photoModelRequired && chat.historyReady && !chat.busy && (chat.draft.isNotBlank() || chat.imageName != null)),
                                 modifier = Modifier.padding(bottom = 4.dp)
                             ) {
                                 if (chat.sending) Icon(Icons.Default.Stop, "Stop response")
@@ -186,6 +190,11 @@ fun ChatScreen() {
             },
             messages = {
                 Column(Modifier.fillMaxSize()) {
+                    if (photoModelRequired) {
+                        TextButton(onClick = { settings = true }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                            Text("Select a photo-capable model to continue this chat")
+                        }
+                    }
                     if (!runtime.ready && chat.current.messages.isNotEmpty()) {
                         TextButton(onClick = { settings = true }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
                             Text(if (runtime.loading || installation.busy) "Preparing offline assistant…" else "Set up offline assistant")
@@ -236,9 +245,18 @@ fun ChatScreen() {
                     }
                 }
                 HorizontalDivider(Modifier.padding(vertical = 20.dp))
-                ModelSetupPanel(installation, runtime,
-                    onImport = { try { modelPicker.launch(arrayOf("*/*")) } catch (_: ActivityNotFoundException) { vm.session.reportError("No file picker is available.") } },
-                    onDownload = { OfflineModelRepository.download(it) }, onCancel = OfflineModelRepository::cancel, onRetryLoading = vm::retryLoading)
+                ModelLibraryPanel(installation, runtime, interactionBusy = chat.busy,
+                    onImport = { id ->
+                        importModelId = id
+                        try { modelPicker.launch(arrayOf("*/*")) } catch (_: ActivityNotFoundException) { vm.session.reportError("No file picker is available.") }
+                    },
+                    onDownload = { id, wifi -> OfflineModelRepository.download(wifi, id) },
+                    onUse = vm::useModel, onRemove = vm::removeModel,
+                    onCancel = OfflineModelRepository::cancel, onRefresh = OfflineModelRepository::refreshHardware,
+                    onSource = { url ->
+                        try { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                        catch (_: ActivityNotFoundException) { vm.session.reportError("No browser is available to open the model source.") }
+                    })
                 HorizontalDivider(Modifier.padding(vertical = 20.dp))
                 AboutSection(onOpenGitHub = {
                     try {
