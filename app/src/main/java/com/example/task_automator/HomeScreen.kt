@@ -1,6 +1,5 @@
 package com.example.task_automator
 
-import android.content.Intent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -14,7 +13,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BrightnessAuto
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.DarkMode
@@ -29,24 +27,24 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.task_automator.ui.components.PulseDot
 import com.example.task_automator.ui.components.SolvixCard
+import com.example.task_automator.ui.components.SolvixLogo
 import com.example.task_automator.ui.components.StatusBadge
 import com.example.task_automator.ui.theme.*
-import com.google.firebase.auth.FirebaseAuth
 
 @Composable
 fun HomeScreen(
     name: String,
+    isGuest: Boolean,
+    onSignOut: () -> Unit,
     onChatClicked: () -> Unit,
     onSensorClicked: () -> Unit,
     onLocationClicked: () -> Unit
 ) {
-    val context = LocalContext.current
     var showSignOutDialog by remember { mutableStateOf(false) }
 
     val themeMode by ThemeManager.themeMode.collectAsState()
@@ -65,14 +63,14 @@ fun HomeScreen(
             onDismissRequest = { showSignOutDialog = false },
             title = {
                 Text(
-                    text = "Sign Out",
+                    text = if (isGuest) "Leave guest mode" else "Sign Out",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
             },
             text = {
                 Text(
-                    text = "Are you sure you want to sign out of Solvix?",
+                    text = if (isGuest) "Leave guest mode and return to sign in?" else "Are you sure you want to sign out of Solvix?",
                     style = MaterialTheme.typography.bodyMedium
                 )
             },
@@ -80,14 +78,11 @@ fun HomeScreen(
                 Button(
                     onClick = {
                         showSignOutDialog = false
-                        FirebaseAuth.getInstance().signOut()
-                        val intent = Intent(context, MainActivity::class.java)
-                        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                        context.startActivity(intent)
+                        onSignOut()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("Sign Out")
+                    Text(if (isGuest) "Leave guest mode" else "Sign Out")
                 }
             },
             dismissButton = {
@@ -160,6 +155,10 @@ fun HomeScreen(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onBackground
                         )
+                        if (isGuest) {
+                            Text("Guest mode · No account", style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
 
@@ -193,7 +192,7 @@ fun HomeScreen(
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ExitToApp,
-                            contentDescription = "Sign Out",
+                            contentDescription = if (isGuest) "Leave guest mode" else "Sign Out",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(20.dp)
                         )
@@ -229,16 +228,11 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             StatusBadge(
-                                text = "Gemma 3 Multimodal",
+                                text = "Gemma 4 Multimodal",
                                 color = Color.White,
                                 isActive = true
                             )
-                            Icon(
-                                imageVector = Icons.Default.AutoAwesome,
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(24.dp)
-                            )
+                            SolvixLogo(modifier = Modifier.size(32.dp).clip(RoundedCornerShape(10.dp)))
                         }
 
                         Spacer(modifier = Modifier.height(14.dp))
@@ -253,7 +247,7 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.height(6.dp))
 
                         Text(
-                            text = "Chat with intelligent on-device models, analyze camera snapshots, and automate notification reactions.",
+                            text = "Chat offline with Gemma 4, analyze camera snapshots, and view incoming notifications.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = Color.White.copy(alpha = 0.85f),
                             lineHeight = 20.sp
@@ -419,7 +413,7 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    DiagnosticItem(label = "Intelligence", value = "Gemma 3-1B", color = ElectricIndigo)
+                    DiagnosticItem(label = "Intelligence", value = "Gemma 4 E2B", color = ElectricIndigo)
                     DiagnosticItem(label = "Telemetry", value = "Online", color = CyberCyan)
                     DiagnosticItem(label = "Geofence", value = "Active", color = EmeraldSuccess)
                 }

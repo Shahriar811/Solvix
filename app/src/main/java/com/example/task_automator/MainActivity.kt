@@ -72,14 +72,11 @@ class MainActivity : ComponentActivity() {
                 val snackbarHostState = remember { SnackbarHostState() }
                 val scope = rememberCoroutineScope()
                 val context = LocalContext.current
-
-                // Auto-navigate to HOME_ROUTE if user is already signed in
-                LaunchedEffect(firebaseAuth.currentUser) {
-                    if (firebaseAuth.currentUser != null) {
-                        navController.navigate(AppDestinations.HOME_ROUTE) {
-                            popUpTo(AppDestinations.LOGIN_ROUTE) { inclusive = true }
-                        }
-                    }
+                val guestPreferences = remember { getSharedPreferences("guest_session", MODE_PRIVATE) }
+                var isGuest by remember { mutableStateOf(guestPreferences.getBoolean("active", false)) }
+                val startDestination = remember {
+                    if (isGuest || firebaseAuth.currentUser != null) AppDestinations.HOME_ROUTE
+                    else AppDestinations.LOGIN_ROUTE
                 }
 
                 Scaffold(
@@ -88,7 +85,7 @@ class MainActivity : ComponentActivity() {
                 ) { innerPadding ->
                     NavHost(
                         navController = navController,
-                        startDestination = AppDestinations.LOGIN_ROUTE,
+                        startDestination = startDestination,
                         modifier = Modifier.padding(innerPadding),
                         enterTransition = { fadeIn(tween(260)) + slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(260)) },
                         exitTransition = { fadeOut(tween(260)) + slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(260)) },
@@ -97,10 +94,13 @@ class MainActivity : ComponentActivity() {
                     ) {
                         composable(AppDestinations.LOGIN_ROUTE) {
                             LoginScreen(
-                                onLoginClicked = { email, password ->
+                                onLoginClicked = { email, password, onFinished ->
                                     firebaseAuth.signInWithEmailAndPassword(email, password)
                                         .addOnCompleteListener(this@MainActivity) { task ->
+                                            onFinished()
                                             if (task.isSuccessful) {
+                                                guestPreferences.edit().putBoolean("active", false).apply()
+                                                isGuest = false
                                                 navController.navigate(AppDestinations.HOME_ROUTE) {
                                                     popUpTo(AppDestinations.LOGIN_ROUTE) { inclusive = true }
                                                 }
@@ -117,6 +117,8 @@ class MainActivity : ComponentActivity() {
                                     navController.navigate(AppDestinations.SIGNUP_ROUTE)
                                 },
                                 onGoogleSignInSuccess = {
+                                    guestPreferences.edit().putBoolean("active", false).apply()
+                                    isGuest = false
                                     scope.launch {
                                         snackbarHostState.showSnackbar("Google Sign-In Successful")
                                     }
@@ -127,6 +129,15 @@ class MainActivity : ComponentActivity() {
                                 onGoogleSignInFailed = { message ->
                                     scope.launch {
                                         snackbarHostState.showSnackbar("Google Sign-In Failed: $message")
+                                    }
+                                },
+                                onContinueAsGuest = {
+                                    firebaseAuth.signOut()
+                                    guestPreferences.edit().putBoolean("active", true).apply()
+                                    isGuest = true
+                                    navController.navigate(AppDestinations.HOME_ROUTE) {
+                                        popUpTo(AppDestinations.LOGIN_ROUTE) { inclusive = true }
+                                        launchSingleTop = true
                                     }
                                 }
                             )
@@ -179,7 +190,17 @@ class MainActivity : ComponentActivity() {
                         composable(AppDestinations.HOME_ROUTE) {
                             val currentUser = firebaseAuth.currentUser
                             HomeScreen(
-                                name = currentUser?.displayName ?: currentUser?.email ?: "User",
+                                name = if (isGuest) "Guest" else currentUser?.displayName ?: currentUser?.email ?: "User",
+                                isGuest = isGuest,
+                                onSignOut = {
+                                    if (!isGuest) firebaseAuth.signOut()
+                                    guestPreferences.edit().putBoolean("active", false).apply()
+                                    isGuest = false
+                                    navController.navigate(AppDestinations.LOGIN_ROUTE) {
+                                        popUpTo(navController.graph.id) { inclusive = true }
+                                        launchSingleTop = true
+                                    }
+                                },
                                 onChatClicked = {
                                     navController.navigate(AppDestinations.CHAT_ROUTE)
                                 },
@@ -194,7 +215,7 @@ class MainActivity : ComponentActivity() {
 
                         composable(AppDestinations.CHAT_ROUTE) {
                             ChatScreen(
-                                userName = firebaseAuth.currentUser?.displayName ?: "You",
+                                userName = if (isGuest) "Guest" else firebaseAuth.currentUser?.displayName ?: "You",
                                 onBackClicked = { navController.popBackStack() }
                             )
                         }
@@ -309,7 +330,7 @@ class MainActivity : ComponentActivity() {
         if (!isNotificationListenerEnabled()) {
             Toast.makeText(
                 this,
-                "Please enable notification access for Task Automator in the next screen",
+                "Please enable notification access for ${getString(R.string.app_name)} in the next screen",
                 Toast.LENGTH_LONG
             ).show()
 

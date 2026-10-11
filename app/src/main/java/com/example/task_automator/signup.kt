@@ -13,7 +13,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
@@ -34,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.task_automator.ui.components.SolvixGradientButton
 import com.example.task_automator.ui.components.SolvixTextField
+import com.example.task_automator.ui.components.SolvixLogo
 import com.example.task_automator.ui.theme.*
 
 @Composable
@@ -96,30 +96,11 @@ fun SignupScreen(
         ) {
             Spacer(modifier = Modifier.height(32.dp))
 
-            // App Brand Logo
-            Box(
+            SolvixLogo(
                 modifier = Modifier
                     .size(68.dp)
                     .clip(RoundedCornerShape(20.dp))
-                    .background(
-                        Brush.linearGradient(
-                            listOf(ElectricIndigo, VioletAccent, CyberCyan)
-                        )
-                    )
-                    .border(
-                        1.5.dp,
-                        Color.White.copy(alpha = 0.25f),
-                        RoundedCornerShape(20.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.AutoAwesome,
-                    contentDescription = "Solvix Logo",
-                    tint = Color.White,
-                    modifier = Modifier.size(34.dp)
-                )
-            }
+            )
 
             Spacer(modifier = Modifier.height(18.dp))
 

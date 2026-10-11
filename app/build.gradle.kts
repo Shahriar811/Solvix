@@ -94,9 +94,8 @@ dependencies {
     // Image loading (Coil for Compose)
     implementation("io.coil-kt:coil-compose:2.6.0")
 
-    // MediaPipe GenAI and Framework for multimodal support
-    implementation("com.google.mediapipe:tasks-genai:0.10.25")
-    implementation("com.google.mediapipe:tasks-vision-image-generator:0.10.21")
+    // One Gemma 4 bundle for text and multimodal inference.
+    implementation("com.google.ai.edge.litertlm:litertlm-android:0.13.1")
 
     // Core library for bitmap utilities
     implementation("androidx.core:core:1.15.0")
@@ -105,8 +104,8 @@ dependencies {
     implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
 
     // Coroutines
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
 
     // Google Maps dependencies
     implementation("com.google.android.gms:play-services-maps:18.2.0")
@@ -115,7 +114,7 @@ dependencies {
 
     // Testing
     testImplementation(libs.junit)
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

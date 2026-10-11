@@ -17,7 +17,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.LightMode
@@ -42,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.task_automator.ui.components.SolvixGradientButton
 import com.example.task_automator.ui.components.SolvixTextField
+import com.example.task_automator.ui.components.SolvixLogo
 import com.example.task_automator.ui.theme.*
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
@@ -54,10 +54,11 @@ import com.google.firebase.ktx.Firebase
 
 @Composable
 fun LoginScreen(
-    onLoginClicked: (String, String) -> Unit,
+    onLoginClicked: (String, String, () -> Unit) -> Unit,
     onNavigateToSignup: () -> Unit,
     onGoogleSignInSuccess: () -> Unit,
-    onGoogleSignInFailed: (String) -> Unit
+    onGoogleSignInFailed: (String) -> Unit,
+    onContinueAsGuest: () -> Unit
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -145,30 +146,11 @@ fun LoginScreen(
         ) {
             Spacer(modifier = Modifier.height(32.dp))
 
-            // App Brand Logo with Subtle Glow
-            Box(
+            SolvixLogo(
                 modifier = Modifier
                     .size(76.dp)
                     .clip(RoundedCornerShape(22.dp))
-                    .background(
-                        Brush.linearGradient(
-                            listOf(ElectricIndigo, VioletAccent, CyberCyan)
-                        )
-                    )
-                    .border(
-                        1.5.dp,
-                        Color.White.copy(alpha = 0.25f),
-                        RoundedCornerShape(22.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.AutoAwesome,
-                    contentDescription = "Solvix Logo",
-                    tint = Color.White,
-                    modifier = Modifier.size(38.dp)
-                )
-            }
+            )
 
             Spacer(modifier = Modifier.height(20.dp))
 
@@ -250,12 +232,28 @@ fun LoginScreen(
 
                     if (valid) {
                         isSigningIn = true
-                        onLoginClicked(email, password)
+                        onLoginClicked(email, password) { isSigningIn = false }
                     }
                 },
                 modifier = Modifier.fillMaxWidth()
             )
 
+            Spacer(modifier = Modifier.height(24.dp))
+
+            OutlinedButton(
+                onClick = onContinueAsGuest,
+                enabled = !isSigningIn,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Text("Continue as guest")
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                "Try the app without an account",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             Spacer(modifier = Modifier.height(24.dp))
 
             // Divider

@@ -376,7 +376,7 @@ fun PulseDot(
 }
 
 /**
- * Minimalist Status Badge pill (e.g. "Live", "Gemma 3 AI", "Online").
+ * Minimalist Status Badge pill (e.g. "Live", "Gemma 4 AI", "Online").
  */
 @Composable
 fun StatusBadge(

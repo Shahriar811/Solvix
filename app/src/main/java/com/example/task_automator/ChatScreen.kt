@@ -29,7 +29,6 @@ import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.NotificationsActive
-import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -44,19 +43,26 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
-import com.example.task_automator.helpers.LlmInferenceHelper
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.task_automator.helpers.GemmaModelRepository
 import com.example.task_automator.services.NotificationListener
 import com.example.task_automator.ui.components.PulseDot
 import com.example.task_automator.ui.components.SolvixCard
 import com.example.task_automator.ui.components.StatusBadge
+import com.example.task_automator.ui.components.GemmaModelPanel
+import com.example.task_automator.ui.components.SolvixLogo
 import com.example.task_automator.ui.theme.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
 fun ChatScreen(userName: String, onBackClicked: () -> Unit) {
     val context = LocalContext.current
+    val modelViewModel: ChatModelViewModel = viewModel()
+    val modelState by modelViewModel.state.collectAsState()
+    val installation by GemmaModelRepository.state.collectAsState()
     var message by remember { mutableStateOf("") }
     val messages = remember { mutableStateListOf<String>() }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -64,6 +70,10 @@ fun ChatScreen(userName: String, onBackClicked: () -> Unit) {
     var isLoading by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
+
+    val modelPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let { GemmaModelRepository.importModel(it) }
+    }
 
     // Notification Broadcast Receiver
     val notificationReceiver = remember {
@@ -94,19 +104,34 @@ fun ChatScreen(userName: String, onBackClicked: () -> Unit) {
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
-            try {
-                @Suppress("DEPRECATION")
-                val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                    val source = android.graphics.ImageDecoder.createSource(context.contentResolver, it)
-                    android.graphics.ImageDecoder.decodeBitmap(source)
-                } else {
-                    android.provider.MediaStore.Images.Media.getBitmap(context.contentResolver, it)
+            coroutineScope.launch {
+                isLoading = true
+                try {
+                    val bitmap = withContext(Dispatchers.IO) {
+                        @Suppress("DEPRECATION")
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                            val source = android.graphics.ImageDecoder.createSource(context.contentResolver, it)
+                            android.graphics.ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
+                                decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
+                                val ratio = (1024f / maxOf(info.size.width, info.size.height)).coerceAtMost(1f)
+                                decoder.setTargetSize(
+                                    (info.size.width * ratio).toInt().coerceAtLeast(1),
+                                    (info.size.height * ratio).toInt().coerceAtLeast(1)
+                                )
+                            }
+                        } else {
+                            android.provider.MediaStore.Images.Media.getBitmap(context.contentResolver, it)
+                        }
+                    }
+                    selectedImage = bitmap
+                    messages.add("Image selected from gallery")
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Exception) {
+                    errorMessage = "Failed to load image: ${error.message}"
+                } finally {
+                    isLoading = false
                 }
-                selectedImage = bitmap
-                messages.add("Image selected from gallery")
-            } catch (e: Exception) {
-                errorMessage = "Failed to load image: ${e.message}"
-                messages.add("Error: $errorMessage")
             }
         }
     }
@@ -124,21 +149,9 @@ fun ChatScreen(userName: String, onBackClicked: () -> Unit) {
         }
     }
 
-    // Initialize multimodal model
-    LaunchedEffect(Unit) {
-        isLoading = true
-        if (!LlmInferenceHelper.initMultiModalModel(context)) {
-            errorMessage = "Failed to initialize multimodal model. Check Logcat."
-            messages.add("Error: $errorMessage")
-        } else {
-            messages.add("Welcome, $userName! I am ready with Gemma 3 on-device intelligence. You can chat, attach an image, or automate incoming notifications.")
-        }
-        isLoading = false
-    }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            LlmInferenceHelper.cleanup()
+    LaunchedEffect(modelState.ready) {
+        if (modelState.ready) {
+            messages.add("Welcome, $userName! Gemma 4 is ready for offline chat${if (modelState.supportsImages) " and image analysis" else ""}.")
         }
     }
 
@@ -189,24 +202,11 @@ fun ChatScreen(userName: String, onBackClicked: () -> Unit) {
 
                     Spacer(modifier = Modifier.width(12.dp))
 
-                    Box(
+                    SolvixLogo(
                         modifier = Modifier
                             .size(38.dp)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.linearGradient(
-                                    listOf(ElectricIndigo, VioletAccent)
-                                )
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.SmartToy,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
+                            .clip(RoundedCornerShape(12.dp))
+                    )
 
                     Spacer(modifier = Modifier.width(10.dp))
 
@@ -219,10 +219,10 @@ fun ChatScreen(userName: String, onBackClicked: () -> Unit) {
                                 color = MaterialTheme.colorScheme.onBackground
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            PulseDot(color = EmeraldSuccess, isActive = true)
+                            PulseDot(color = EmeraldSuccess, isActive = modelState.ready)
                         }
                         Text(
-                            text = "Gemma 3 On-Device AI",
+                            text = "Gemma 4 On-Device AI",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -230,11 +230,20 @@ fun ChatScreen(userName: String, onBackClicked: () -> Unit) {
                 }
 
                 StatusBadge(
-                    text = "Multimodal",
+                    text = if (modelState.ready) "Offline" else "Setup",
                     color = ElectricIndigo,
-                    isActive = false
+                    isActive = modelState.ready
                 )
             }
+
+            GemmaModelPanel(
+                installation = installation,
+                runtime = modelState,
+                onImport = { modelPicker.launch(arrayOf("*/*")) },
+                onDownload = { GemmaModelRepository.download(it) },
+                onCancel = { GemmaModelRepository.cancel() },
+                onRetryLoading = { modelViewModel.retryLoading() }
+            )
 
             // Error Banner
             AnimatedVisibility(
@@ -364,7 +373,7 @@ fun ChatScreen(userName: String, onBackClicked: () -> Unit) {
                     // Camera Action Button
                     IconButton(
                         onClick = { cameraLauncher.launch(null) },
-                        enabled = !isLoading,
+                        enabled = modelState.ready && modelState.supportsImages && !isLoading,
                         modifier = Modifier.size(40.dp)
                     ) {
                         Icon(
@@ -378,7 +387,7 @@ fun ChatScreen(userName: String, onBackClicked: () -> Unit) {
                     // Gallery Action Button
                     IconButton(
                         onClick = { imagePickerLauncher.launch("image/*") },
-                        enabled = !isLoading,
+                        enabled = modelState.ready && modelState.supportsImages && !isLoading,
                         modifier = Modifier.size(40.dp)
                     ) {
                         Icon(
@@ -411,11 +420,11 @@ fun ChatScreen(userName: String, onBackClicked: () -> Unit) {
                         ),
                         singleLine = false,
                         maxLines = 4,
-                        enabled = !isLoading
+                        enabled = modelState.ready && !isLoading
                     )
 
                     // Send Action Button
-                    val canSend = (message.isNotBlank() || selectedImage != null) && !isLoading
+                    val canSend = modelState.ready && (message.isNotBlank() || selectedImage != null) && !isLoading
                     Box(
                         modifier = Modifier
                             .size(44.dp)
@@ -426,23 +435,26 @@ fun ChatScreen(userName: String, onBackClicked: () -> Unit) {
                             )
                             .clickable(enabled = canSend) {
                                 val userMessage = message
+                                val attachedImage = selectedImage
                                 if (userMessage.isNotBlank()) {
                                     messages.add("You: $userMessage")
                                 }
                                 message = ""
                                 isLoading = true
+                                errorMessage = null
 
                                 coroutineScope.launch {
-                                    val response = withContext(Dispatchers.Default) {
-                                        if (selectedImage != null) {
-                                            LlmInferenceHelper.generateMultiModalResponse(userMessage, selectedImage!!)
-                                        } else {
-                                            LlmInferenceHelper.generateResponse(userMessage)
-                                        }
+                                    try {
+                                        val response = modelViewModel.generateResponse(userMessage, attachedImage)
+                                        messages.add("Bot: $response")
+                                        selectedImage = null
+                                    } catch (error: CancellationException) {
+                                        throw error
+                                    } catch (error: Exception) {
+                                        errorMessage = error.message ?: "Unable to generate a response. Please retry."
+                                    } finally {
+                                        isLoading = false
                                     }
-                                    messages.add("Bot: $response")
-                                    selectedImage = null
-                                    isLoading = false
                                 }
                             },
                         contentAlignment = Alignment.Center

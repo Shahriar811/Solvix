@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Task Automator</string>
+    <string name="app_name">Solvix</string>
     <string name="location_services">Location Services</string>
     <string name="add_instruction">Add Instruction</string>
     <string name="add_application">Add Application</string>
