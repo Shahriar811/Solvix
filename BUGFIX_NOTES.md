@@ -9,3 +9,5 @@ The chat retains drafts, attachment selection and pending responses across rotat
 Local validation runs the debug build, all unit tests, Android lint and compilation of device tests. No phone launch, installation, benchmark or instrumentation run was performed for this redesign. Interactive verification and performance benchmarks remain to be run when device use is allowed.
 
 The model and generation settings were kept unchanged. Streaming improves responsiveness, without claiming a measured hardware speedup. Chat drafts are not saved across process termination. Conversation length remains subject to the model's existing context limit. Pinned chats survive automatic retention, but not an explicit deletion, app data clearing or uninstall.
+
+Version 1.1 uses one inset owner around a header, weighted message area and bottom composer. Navigation-bar and keyboard insets are combined with a maximum instead of stacked. The footer beneath the composer has been removed. Three headless Compose regression tests cover keyboard closed, opening at several heights, closing, and focusing the input. These tests run locally with Robolectric; no phone or model engine is used.

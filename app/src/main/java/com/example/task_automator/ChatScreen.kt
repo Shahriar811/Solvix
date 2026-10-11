@@ -47,7 +47,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen() {
     val vm: ChatModelViewModel = viewModel()
@@ -55,7 +55,6 @@ fun ChatScreen() {
     val runtime by vm.state.collectAsState()
     val installation by OfflineModelRepository.state.collectAsState()
     val context = LocalContext.current
-    val keyboardVisible = WindowInsets.isImeVisible
     val scope = rememberCoroutineScope()
     val drawer = rememberDrawerState(DrawerValue.Closed)
     var settings by rememberSaveable { mutableStateOf(false) }
@@ -124,13 +123,9 @@ fun ChatScreen() {
             }
         }
     ) {
-        Scaffold(
-            // Resize the entire chat for the IME once. The composer only owns
-            // navigation-bar spacing, so focusing it cannot lift it twice.
-            modifier = Modifier.fillMaxSize().imePadding(),
-            contentWindowInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal),
-            topBar = {
-                Row(Modifier.fillMaxWidth().statusBarsPadding().height(60.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        ChatLayout(
+            header = {
+                Row(Modifier.fillMaxWidth().height(60.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { scope.launch { drawer.open() } }, enabled = !chat.busy) { Icon(Icons.Default.Menu, "Chat history") }
                     Column(Modifier.weight(1f).padding(horizontal = 8.dp)) {
                         Text(if (chat.current.messages.isEmpty()) "Solvix" else chat.current.title, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -139,8 +134,8 @@ fun ChatScreen() {
                     IconButton(onClick = { settings = true }) { Icon(Icons.Default.MoreHoriz, "Settings") }
                 }
             },
-            bottomBar = {
-                Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 12.dp)) {
+            composer = {
+                Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                     chat.error?.let { error ->
                         Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(8.dp))
                         if (!chat.historyReady) TextButton(onClick = vm::loadHistory) { Text("Retry loading history") }
@@ -186,49 +181,47 @@ fun ChatScreen() {
                             }
                         }
                     }
-                    if (!keyboardVisible) {
-                        Text("Private · On your device", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.align(Alignment.CenterHorizontally).padding(8.dp))
-                    } else Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(4.dp))
                 }
-            }
-        ) { insets ->
-            Column(Modifier.fillMaxSize().padding(insets).consumeWindowInsets(insets)) {
-                if (!runtime.ready && chat.current.messages.isNotEmpty()) {
-                    TextButton(onClick = { settings = true }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
-                        Text(if (runtime.loading || installation.busy) "Preparing offline assistant…" else "Set up offline assistant")
-                    }
-                }
-                if (chat.current.messages.isEmpty() && !chat.sending) {
-                    Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(if (runtime.ready) "How can I help?" else "Your private assistant", style = MaterialTheme.typography.headlineMedium)
-                        Spacer(Modifier.height(12.dp))
-                        Text(when {
-                            runtime.loading -> "Preparing your assistant…"
-                            installation.busy -> installation.label
-                            runtime.ready -> if (runtime.supportsImages) "Ask a question or share a photo." else "Ask a question."
-                            else -> "Set up once. Chat offline whenever you need."
-                        }, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
-                        if (!runtime.ready) {
-                            Spacer(Modifier.height(20.dp))
-                            if (runtime.loading || installation.busy) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
-                            else OutlinedButton(onClick = { settings = true }) { Text("Set up assistant") }
+            },
+            messages = {
+                Column(Modifier.fillMaxSize()) {
+                    if (!runtime.ready && chat.current.messages.isNotEmpty()) {
+                        TextButton(onClick = { settings = true }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                            Text(if (runtime.loading || installation.busy) "Preparing offline assistant…" else "Set up offline assistant")
                         }
                     }
-                } else {
-                    LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                        items(chat.current.messages, key = { it.id }) { message -> ChatMessageView(message, message.imageName?.let(vm.history::imageFile)) }
-                        if (chat.sending) {
-                            item(key = "pending-user") { ChatMessageView(ChatMessage(role = ChatRole.USER, text = chat.draft.trim().ifBlank { "Describe this image." }), chat.imageName?.let(vm.history::imageFile)) }
-                            item(key = "reply") {
-                                if (chat.partialReply.isBlank()) Text("Thinking…", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                else AssistantText(chat.partialReply)
+                    if (chat.current.messages.isEmpty() && !chat.sending) {
+                        Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(if (runtime.ready) "How can I help?" else "Your private assistant", style = MaterialTheme.typography.headlineMedium)
+                            Spacer(Modifier.height(12.dp))
+                            Text(when {
+                                runtime.loading -> "Preparing your assistant…"
+                                installation.busy -> installation.label
+                                runtime.ready -> if (runtime.supportsImages) "Ask a question or share a photo." else "Ask a question."
+                                else -> "Set up once. Chat offline whenever you need."
+                            }, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+                            if (!runtime.ready) {
+                                Spacer(Modifier.height(20.dp))
+                                if (runtime.loading || installation.busy) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                                else OutlinedButton(onClick = { settings = true }) { Text("Set up assistant") }
+                            }
+                        }
+                    } else {
+                        LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                            items(chat.current.messages, key = { it.id }) { message -> ChatMessageView(message, message.imageName?.let(vm.history::imageFile)) }
+                            if (chat.sending) {
+                                item(key = "pending-user") { ChatMessageView(ChatMessage(role = ChatRole.USER, text = chat.draft.trim().ifBlank { "Describe this image." }), chat.imageName?.let(vm.history::imageFile)) }
+                                item(key = "reply") {
+                                    if (chat.partialReply.isBlank()) Text("Thinking…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    else AssistantText(chat.partialReply)
+                                }
                             }
                         }
                     }
                 }
             }
-        }
+        )
     }
     if (settings) {
         ModalBottomSheet(onDismissRequest = { settings = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {

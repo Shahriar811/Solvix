@@ -7,12 +7,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.task_automator.BuildConfig
 
 const val DEVELOPER_GITHUB_URL = "https://github.com/Shahriar811"
 
 @Composable
 fun AboutSection(onOpenGitHub: () -> Unit, onOpenLicense: () -> Unit) {
     Text("About Solvix", style = MaterialTheme.typography.titleSmall)
+    Text("Version ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant)
     Spacer(Modifier.height(8.dp))
     Text("Md. Shahriar Hossain is the developer of this app.", style = MaterialTheme.typography.bodyMedium)
     TextButton(onClick = onOpenGitHub, contentPadding = PaddingValues(vertical = 8.dp)) {
