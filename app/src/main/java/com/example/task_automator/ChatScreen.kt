@@ -2,727 +2,269 @@ package com.example.task_automator
 
 import android.Manifest
 import android.content.ActivityNotFoundException
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.net.Uri
-import android.os.Build
-import android.provider.Settings
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.*
-import androidx.compose.animation.core.*
-import androidx.compose.foundation.Image
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.core.content.ContextCompat
-import androidx.core.app.NotificationManagerCompat
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.task_automator.helpers.GemmaModelRepository
-import com.example.task_automator.services.NotificationListener
-import com.example.task_automator.ui.components.PulseDot
-import com.example.task_automator.ui.components.SolvixCard
-import com.example.task_automator.ui.components.StatusBadge
-import com.example.task_automator.ui.components.GemmaModelPanel
-import com.example.task_automator.ui.components.SolvixLogo
-import com.example.task_automator.ui.theme.*
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.CancellationException
+import coil.compose.AsyncImage
+import com.example.task_automator.helpers.OfflineModelRepository
+import com.example.task_automator.ui.components.ModelSetupPanel
+import com.example.task_automator.ui.theme.AppThemeMode
+import com.example.task_automator.ui.theme.ThemeManager
+import java.io.File
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatScreen(userName: String, onBackClicked: () -> Unit) {
+fun ChatScreen() {
+    val vm: ChatModelViewModel = viewModel()
+    val chat by vm.session.state.collectAsState()
+    val runtime by vm.state.collectAsState()
+    val installation by OfflineModelRepository.state.collectAsState()
     val context = LocalContext.current
-    val modelViewModel: ChatModelViewModel = viewModel()
-    val modelState by modelViewModel.state.collectAsState()
-    val installation by GemmaModelRepository.state.collectAsState()
-    val session = modelViewModel.session
-    val chatState by session.state.collectAsState()
-    val message = chatState.draft
-    val messages = chatState.messages
-    val errorMessage = chatState.error
-    val selectedImage = chatState.image
-    val isLoading = chatState.busy
-    val coroutineScope = rememberCoroutineScope()
+    val scope = rememberCoroutineScope()
+    val drawer = rememberDrawerState(DrawerValue.Closed)
+    var settings by rememberSaveable { mutableStateOf(false) }
+    var attachments by remember { mutableStateOf(false) }
+    var deleting by remember { mutableStateOf<SavedChat?>(null) }
     val listState = rememberLazyListState()
-    val lifecycleOwner = LocalLifecycleOwner.current
-    var notificationAccess by remember { mutableStateOf(NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)) }
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                notificationAccess = NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    val modelPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { OfflineModelRepository.importModel(it) } }
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> uri?.let(vm::attach) }
+    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap -> bitmap?.let(vm::attach) }
+    fun capture() {
+        try { camera.launch(null) }
+        catch (_: ActivityNotFoundException) { vm.session.reportError("No camera app is available. Choose a photo instead.") }
+        catch (_: SecurityException) { vm.session.reportError("Enable camera permission in Android app settings.") }
+    }
+    val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) capture() else vm.session.reportError("Camera access was denied. You can still choose a photo.")
+    }
+    BackHandler(drawer.isOpen) { scope.launch { drawer.close() } }
+    LaunchedEffect(chat.current.id) {
+        if (chat.current.messages.isNotEmpty()) listState.scrollToItem(chat.current.messages.lastIndex)
+    }
+    LaunchedEffect(chat.current.messages.size, chat.partialReply, chat.sending) {
+        val total = listState.layoutInfo.totalItemsCount
+        val bottom = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+        if (total > 0 && bottom >= total - 2) listState.scrollToItem(total - 1)
     }
 
-    val modelPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let { GemmaModelRepository.importModel(it) }
-    }
-
-    // Notification Broadcast Receiver
-    val notificationReceiver = remember {
-        object : BroadcastReceiver() {
-            override fun onReceive(context: Context, intent: Intent) {
-                if (intent.action == NotificationListener.ACTION_NOTIFICATION_RECEIVED) {
-                    val app = intent.getStringExtra(NotificationListener.EXTRA_NOTIFICATION_APP) ?: "App"
-                    val text = intent.getStringExtra(NotificationListener.EXTRA_NOTIFICATION_TEXT) ?: ""
-                    session.addMessage("Notification from $app: $text")
-                }
-            }
-        }
-    }
-
-    DisposableEffect(context, notificationReceiver) {
-        val filter = IntentFilter(NotificationListener.ACTION_NOTIFICATION_RECEIVED)
-        LocalBroadcastManager.getInstance(context).registerReceiver(notificationReceiver, filter)
-        onDispose {
-            LocalBroadcastManager.getInstance(context).unregisterReceiver(notificationReceiver)
-        }
-    }
-
-    // Image Picker Launcher
-    val imagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let {
-            coroutineScope.launch {
-                session.setLoadingImage(true)
-                try {
-                    val bitmap = withContext(Dispatchers.IO) {
-                        @Suppress("DEPRECATION")
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                            val source = android.graphics.ImageDecoder.createSource(context.contentResolver, it)
-                            android.graphics.ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
-                                decoder.allocator = android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
-                                val ratio = (1024f / maxOf(info.size.width, info.size.height)).coerceAtMost(1f)
-                                decoder.setTargetSize(
-                                    (info.size.width * ratio).toInt().coerceAtLeast(1),
-                                    (info.size.height * ratio).toInt().coerceAtLeast(1)
-                                )
-                            }
-                        } else {
-                            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                            context.contentResolver.openInputStream(it)?.use { stream ->
-                                BitmapFactory.decodeStream(stream, null, bounds)
-                            }
-                            val options = BitmapFactory.Options()
-                            while (maxOf(bounds.outWidth, bounds.outHeight) / options.inSampleSize > 1024) {
-                                options.inSampleSize *= 2
-                            }
-                            context.contentResolver.openInputStream(it)?.use { stream ->
-                                BitmapFactory.decodeStream(stream, null, options)
-                            } ?: error("Cannot read the selected image.")
+    ModalNavigationDrawer(
+        drawerState = drawer,
+        gesturesEnabled = !chat.busy,
+        drawerContent = {
+            ModalDrawerSheet(modifier = Modifier.width(310.dp), drawerContainerColor = MaterialTheme.colorScheme.surface) {
+                Column(Modifier.fillMaxSize().statusBarsPadding().padding(16.dp)) {
+                    Text("Chats", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(8.dp))
+                    TextButton(onClick = { vm.session.newChat(); scope.launch { drawer.close() } }, enabled = !chat.busy && chat.historyReady) {
+                        Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("New chat")
+                    }
+                    LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        if (chat.chats.isEmpty()) item { Text("Your conversations will appear here.", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(8.dp, 24.dp)) }
+                        val pinned = chat.chats.filter { it.pinned }
+                        val recent = chat.chats.filterNot { it.pinned }
+                        if (pinned.isNotEmpty()) item { HistoryLabel("Pinned") }
+                        items(pinned, key = { it.id }) { saved ->
+                            HistoryRow(saved, saved.id == chat.current.id, !chat.busy,
+                                { vm.session.open(saved.id); scope.launch { drawer.close() } },
+                                { vm.session.pin(saved.id) }, { deleting = saved })
+                        }
+                        if (recent.isNotEmpty()) item { HistoryLabel("Recent") }
+                        items(recent, key = { it.id }) { saved ->
+                            HistoryRow(saved, saved.id == chat.current.id, !chat.busy,
+                                { vm.session.open(saved.id); scope.launch { drawer.close() } },
+                                { vm.session.pin(saved.id) }, { deleting = saved })
                         }
                     }
-                    session.setImage(bitmap)
-                    session.reportError(null)
-                    session.addMessage("Image selected from gallery")
-                } catch (error: CancellationException) {
-                    throw error
-                } catch (error: Exception) {
-                    session.reportError("Failed to load image: ${error.message}")
-                } finally {
-                    session.setLoadingImage(false)
+                    Text("Last 10 recent chats are kept. Pinned chats stay until you delete them.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(8.dp, 12.dp))
                 }
             }
         }
-    }
-
-    // Camera Launcher
-    val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicturePreview()
-    ) { bitmap: Bitmap? ->
-        bitmap?.let {
-            session.setImage(it)
-            session.reportError(null)
-            session.addMessage("Image captured from camera")
-        }
-    }
-
-    fun captureImage() {
-        try {
-            cameraLauncher.launch(null)
-        } catch (error: ActivityNotFoundException) {
-            session.reportError("No camera app is available. Select an image from the gallery instead.")
-        } catch (error: SecurityException) {
-            session.reportError("Camera permission is required. Enable it in Android app settings.")
-        }
-    }
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) captureImage()
-        else session.reportError("Camera permission was denied. You can still select a gallery image.")
-    }
-
-    LaunchedEffect(modelState.ready) {
-        if (modelState.ready && messages.isEmpty()) {
-            session.addMessage("Welcome, $userName! Gemma 4 is ready for offline chat${if (modelState.supportsImages) " and image analysis" else ""}.")
-        }
-    }
-
-    // Auto-scroll when new message is added
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(0)
-        }
-    }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-        ) {
-            // Header Bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                        modifier = Modifier.size(42.dp)
-                    ) {
-                        IconButton(onClick = onBackClicked) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                modifier = Modifier.size(20.dp),
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
+        Scaffold(
+            topBar = {
+                Row(Modifier.fillMaxWidth().statusBarsPadding().height(60.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { scope.launch { drawer.open() } }, enabled = !chat.busy) { Icon(Icons.Default.Menu, "Chat history") }
+                    Column(Modifier.weight(1f).padding(horizontal = 8.dp)) {
+                        Text(if (chat.current.messages.isEmpty()) "Solvix" else chat.current.title, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    IconButton(onClick = vm.session::newChat, enabled = !chat.busy && chat.historyReady) { Icon(Icons.Default.Edit, "New chat") }
+                    IconButton(onClick = { settings = true }) { Icon(Icons.Default.MoreHoriz, "Settings") }
+                }
+            },
+            bottomBar = {
+                Column(Modifier.fillMaxWidth().navigationBarsPadding().imePadding().padding(horizontal = 12.dp)) {
+                    chat.error?.let { error ->
+                        Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(8.dp))
+                        if (!chat.historyReady) TextButton(onClick = vm::loadHistory) { Text("Retry loading history") }
+                    }
+                    chat.imageName?.takeUnless { chat.sending }?.let { name ->
+                        Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            AsyncImage(vm.history.imageFile(name), "Attached photo", modifier = Modifier.size(60.dp).clip(RoundedCornerShape(12.dp)))
+                            Spacer(Modifier.width(8.dp)); Text("Photo attached", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                            IconButton(onClick = { vm.session.setImage(null) }, enabled = !chat.busy) { Icon(Icons.Default.Close, "Remove photo") }
                         }
                     }
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    SolvixLogo(
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                    )
-
-                    Spacer(modifier = Modifier.width(10.dp))
-
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "Solvix Assistant",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onBackground
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            PulseDot(color = EmeraldSuccess, isActive = modelState.ready)
-                        }
-                        Text(
-                            text = "Gemma 4 On-Device AI",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                StatusBadge(
-                    text = if (modelState.ready) "Offline" else "Setup",
-                    color = ElectricIndigo,
-                    isActive = modelState.ready
-                )
-            }
-
-            GemmaModelPanel(
-                installation = installation,
-                runtime = modelState,
-                onImport = { modelPicker.launch(arrayOf("*/*")) },
-                onDownload = { GemmaModelRepository.download(it) },
-                onCancel = { GemmaModelRepository.cancel() },
-                onRetryLoading = { modelViewModel.retryLoading() }
-            )
-
-            if (!notificationAccess) {
-                TextButton(onClick = {
-                    try {
-                        context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                    } catch (error: ActivityNotFoundException) {
-                        session.reportError("Notification access settings are unavailable on this device.")
-                    }
-                }) { Text("Enable notification access (optional)") }
-            }
-
-            // Error Banner
-            AnimatedVisibility(
-                visible = errorMessage != null,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
-            ) {
-                errorMessage?.let {
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.errorContainer,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 8.dp)
-                    ) {
-                        Text(
-                            text = it,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(12.dp)
-                        )
-                    }
-                }
-            }
-
-            // Chat Messages List
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                state = listState,
-                reverseLayout = true,
-                contentPadding = PaddingValues(vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                // Typing Indicator at bottom of chat (top of reversed list)
-                if (isLoading) {
-                    item {
-                        ThinkingBubble()
-                    }
-                }
-
-                items(messages.reversed()) { msg ->
-                    ChatMessageItem(message = msg)
-                }
-            }
-
-            // Image Preview Floating Chip
-            AnimatedVisibility(
-                visible = selectedImage != null,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
-            ) {
-                selectedImage?.let { bitmap ->
-                    Surface(
-                        shape = RoundedCornerShape(16.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Image(
-                                    bitmap = bitmap.asImageBitmap(),
-                                    contentDescription = "Selected Attachment",
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier
-                                        .size(48.dp)
-                                        .clip(RoundedCornerShape(10.dp))
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Text(
-                                        text = "Attached Image",
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = "Ready for multimodal analysis",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                    Surface(shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+                        Row(Modifier.padding(6.dp), verticalAlignment = Alignment.Bottom) {
+                            Box {
+                                IconButton(onClick = { attachments = true }, enabled = runtime.ready && runtime.supportsImages && chat.historyReady && !chat.busy) { Icon(Icons.Default.Add, "Attach photo") }
+                                DropdownMenu(expanded = attachments, onDismissRequest = { attachments = false }) {
+                                    DropdownMenuItem(text = { Text("Choose photo") }, leadingIcon = { Icon(Icons.Default.Image, null) }, onClick = {
+                                        attachments = false
+                                        try { imagePicker.launch("image/*") } catch (_: ActivityNotFoundException) { vm.session.reportError("No photo picker is available.") }
+                                    })
+                                    DropdownMenuItem(text = { Text("Take photo") }, leadingIcon = { Icon(Icons.Default.CameraAlt, null) }, onClick = {
+                                        attachments = false
+                                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) capture()
+                                        else cameraPermission.launch(Manifest.permission.CAMERA)
+                                    })
                                 }
                             }
-
-                            IconButton(
-                                onClick = { session.setImage(null) },
-                                enabled = !isLoading,
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.surface)
+                            TextField(
+                                value = if (chat.sending) "" else chat.draft, onValueChange = vm.session::updateDraft,
+                                placeholder = { Text("Message Solvix") }, modifier = Modifier.weight(1f), maxLines = 5,
+                                enabled = runtime.ready && chat.historyReady && !chat.busy,
+                                colors = TextFieldDefaults.colors(focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent, disabledContainerColor = Color.Transparent,
+                                    focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, disabledIndicatorColor = Color.Transparent),
+                                textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp)
+                            )
+                            FilledIconButton(
+                                onClick = { if (chat.sending) vm.session.stop() else vm.session.send() },
+                                enabled = chat.sending || (runtime.ready && chat.historyReady && !chat.busy && (chat.draft.isNotBlank() || chat.imageName != null)),
+                                modifier = Modifier.padding(bottom = 4.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Remove",
-                                    tint = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.size(16.dp)
-                                )
+                                if (chat.sending) Icon(Icons.Default.Stop, "Stop response")
+                                else Icon(Icons.Default.ArrowUpward, "Send message")
+                            }
+                        }
+                    }
+                    Text("Private · On your device", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.align(Alignment.CenterHorizontally).padding(8.dp))
+                }
+            }
+        ) { insets ->
+            Column(Modifier.fillMaxSize().padding(insets)) {
+                if (!runtime.ready && chat.current.messages.isNotEmpty()) {
+                    TextButton(onClick = { settings = true }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                        Text(if (runtime.loading || installation.busy) "Preparing offline assistant…" else "Set up offline assistant")
+                    }
+                }
+                if (chat.current.messages.isEmpty() && !chat.sending) {
+                    Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(if (runtime.ready) "How can I help?" else "Your private assistant", style = MaterialTheme.typography.headlineMedium)
+                        Spacer(Modifier.height(12.dp))
+                        Text(when {
+                            runtime.loading -> "Preparing your assistant…"
+                            installation.busy -> installation.label
+                            runtime.ready -> if (runtime.supportsImages) "Ask a question or share a photo." else "Ask a question."
+                            else -> "Set up once. Chat offline whenever you need."
+                        }, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+                        if (!runtime.ready) {
+                            Spacer(Modifier.height(20.dp))
+                            if (runtime.loading || installation.busy) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                            else OutlinedButton(onClick = { settings = true }) { Text("Set up assistant") }
+                        }
+                    }
+                } else {
+                    LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                        items(chat.current.messages, key = { it.id }) { message -> ChatMessageView(message, message.imageName?.let(vm.history::imageFile)) }
+                        if (chat.sending) {
+                            item(key = "pending-user") { ChatMessageView(ChatMessage(role = ChatRole.USER, text = chat.draft.trim().ifBlank { "Describe this image." }), chat.imageName?.let(vm.history::imageFile)) }
+                            item(key = "reply") {
+                                if (chat.partialReply.isBlank()) Text("Thinking…", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                else AssistantText(chat.partialReply)
                             }
                         }
                     }
                 }
             }
-
-            // Modern Bottom Input Dock
-            Surface(
-                shape = RoundedCornerShape(24.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Camera Action Button
-                    IconButton(
-                        onClick = {
-                            if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) captureImage()
-                            else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                        },
-                        enabled = modelState.ready && modelState.supportsImages && !isLoading,
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.CameraAlt,
-                            contentDescription = "Camera",
-                            tint = if (isLoading) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-
-                    // Gallery Action Button
-                    IconButton(
-                        onClick = { imagePickerLauncher.launch("image/*") },
-                        enabled = modelState.ready && modelState.supportsImages && !isLoading,
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Image,
-                            contentDescription = "Gallery",
-                            tint = if (isLoading) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-
-                    // Message Text Input
-                    TextField(
-                        value = message,
-                        onValueChange = session::updateDraft,
-                        modifier = Modifier.weight(1f),
-                        placeholder = {
-                            Text(
-                                "Ask anything...",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                            )
-                        },
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent,
-                            disabledContainerColor = Color.Transparent,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent,
-                            disabledIndicatorColor = Color.Transparent
-                        ),
-                        singleLine = false,
-                        maxLines = 4,
-                        enabled = modelState.ready && !isLoading
-                    )
-
-                    // Send Action Button
-                    val canSend = modelState.ready && (message.isNotBlank() || selectedImage != null) && !isLoading
-                    Box(
-                        modifier = Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (canSend) Brush.linearGradient(listOf(ElectricIndigo, VioletAccent))
-                                else Brush.linearGradient(listOf(Color.Gray.copy(alpha = 0.3f), Color.Gray.copy(alpha = 0.3f)))
-                            )
-                            .clickable(enabled = canSend) {
-                                session.send()
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "Send",
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
+        }
+    }
+    if (settings) {
+        ModalBottomSheet(onDismissRequest = { settings = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
+                Text("Settings", style = MaterialTheme.typography.headlineSmall)
+                Spacer(Modifier.height(20.dp))
+                Text("Appearance", style = MaterialTheme.typography.titleSmall)
+                val mode by ThemeManager.themeMode.collectAsState()
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(AppThemeMode.SYSTEM to "System", AppThemeMode.LIGHT to "Light", AppThemeMode.DARK to "Dark").forEach { (value, label) ->
+                        FilterChip(selected = mode == value, onClick = { ThemeManager.setThemeMode(value) }, label = { Text(label) })
                     }
                 }
+                HorizontalDivider(Modifier.padding(vertical = 20.dp))
+                ModelSetupPanel(installation, runtime,
+                    onImport = { try { modelPicker.launch(arrayOf("*/*")) } catch (_: ActivityNotFoundException) { vm.session.reportError("No file picker is available.") } },
+                    onDownload = { OfflineModelRepository.download(it) }, onCancel = OfflineModelRepository::cancel, onRetryLoading = vm::retryLoading)
             }
         }
+    }
+    deleting?.let { selected ->
+        AlertDialog(onDismissRequest = { deleting = null }, title = { Text("Delete chat?") },
+            text = { Text("“${selected.title}” and its photos will be removed from this device. This cannot be undone.") },
+            confirmButton = { TextButton(onClick = { vm.session.delete(selected.id); deleting = null }) { Text("Delete", color = MaterialTheme.colorScheme.error) } },
+            dismissButton = { TextButton(onClick = { deleting = null }) { Text("Cancel") } })
     }
 }
 
-/**
- * Modern chat message bubble component.
- */
+@Composable private fun HistoryLabel(text: String) {
+    Text(text, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(8.dp, 16.dp))
+}
 @Composable
-private fun ChatMessageItem(message: String) {
-    val isUser = message.startsWith("You:")
-    val isNotification = message.startsWith("Notification from")
-    val isImageEvent = message.startsWith("Image selected") || message.startsWith("Image captured")
-
-    val cleanText = when {
-        isUser -> message.removePrefix("You:").trim()
-        message.startsWith("Bot:") -> message.removePrefix("Bot:").trim()
-        else -> message
-    }
-
-    Box(
-        modifier = Modifier.fillMaxWidth(),
-        contentAlignment = when {
-            isUser -> Alignment.CenterEnd
-            isNotification || isImageEvent -> Alignment.Center
-            else -> Alignment.CenterStart
-        }
-    ) {
-        when {
-            isUser -> {
-                // User Bubble with Modern Gradient
-                Surface(
-                    shape = RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp, bottomStart = 18.dp, bottomEnd = 4.dp),
-                    color = Color.Transparent,
-                    modifier = Modifier.widthIn(max = 290.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .background(
-                                Brush.linearGradient(
-                                    listOf(ElectricIndigo, VioletAccent)
-                                )
-                            )
-                            .padding(horizontal = 14.dp, vertical = 10.dp)
-                    ) {
-                        Text(
-                            text = cleanText,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.White,
-                            lineHeight = 20.sp
-                        )
-                    }
-                }
-            }
-
-            isNotification -> {
-                // Notification Smart Card
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = AmberWarning.copy(alpha = 0.12f),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, AmberWarning.copy(alpha = 0.35f)),
-                    modifier = Modifier.widthIn(max = 330.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.NotificationsActive,
-                            contentDescription = null,
-                            tint = AmberWarning,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = message,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                    }
-                }
-            }
-
-            isImageEvent -> {
-                // Image Event Pill
-                Surface(
-                    shape = RoundedCornerShape(50),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                    modifier = Modifier.padding(vertical = 2.dp)
-                ) {
-                    Text(
-                        text = message,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                    )
-                }
-            }
-
-            else -> {
-                // AI Bot Bubble
-                Row(
-                    modifier = Modifier.widthIn(max = 310.dp),
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(ElectricIndigo.copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = null,
-                            tint = ElectricIndigo,
-                            modifier = Modifier.size(14.dp)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    Surface(
-                        shape = RoundedCornerShape(topStart = 4.dp, topEnd = 18.dp, bottomStart = 18.dp, bottomEnd = 18.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                        modifier = Modifier.weight(1f, fill = false)
-                    ) {
-                        Text(
-                            text = cleanText,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                            lineHeight = 20.sp
-                        )
-                    }
-                }
-            }
-        }
+internal fun HistoryRow(chat: SavedChat, selected: Boolean, enabled: Boolean, onOpen: () -> Unit, onPin: () -> Unit, onDelete: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (selected) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent)
+        .clickable(enabled = enabled, onClick = onOpen).padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(chat.title, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        IconButton(onClick = onPin, enabled = enabled) { Icon(Icons.Default.PushPin, if (chat.pinned) "Unpin chat" else "Pin chat", tint = if (chat.pinned) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp)) }
+        IconButton(onClick = onDelete, enabled = enabled) { Icon(Icons.Default.DeleteOutline, "Delete chat", modifier = Modifier.size(18.dp)) }
     }
 }
-
-/**
- * Animated thinking dots for when Gemma LLM is generating.
- */
-@Composable
-private fun ThinkingBubble() {
-    val infiniteTransition = rememberInfiniteTransition(label = "thinkingAnim")
-
-    val dot1Alpha by infiniteTransition.animateFloat(
-        initialValue = 0.2f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(600, easing = EaseInOutCubic),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "dot1"
-    )
-
-    val dot2Alpha by infiniteTransition.animateFloat(
-        initialValue = 0.2f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(600, delayMillis = 200, easing = EaseInOutCubic),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "dot2"
-    )
-
-    val dot3Alpha by infiniteTransition.animateFloat(
-        initialValue = 0.2f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(600, delayMillis = 400, easing = EaseInOutCubic),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "dot3"
-    )
-
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(start = 36.dp, top = 4.dp)
-    ) {
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant,
-            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Gemma is thinking",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .clip(CircleShape)
-                        .background(ElectricIndigo.copy(alpha = dot1Alpha))
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .clip(CircleShape)
-                        .background(ElectricIndigo.copy(alpha = dot2Alpha))
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .clip(CircleShape)
-                        .background(ElectricIndigo.copy(alpha = dot3Alpha))
-                )
+@Composable private fun ChatMessageView(message: ChatMessage, image: File?) {
+    if (message.role == ChatRole.USER) {
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
+            Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(20.dp), modifier = Modifier.widthIn(max = 320.dp)) {
+                Column(Modifier.padding(14.dp)) {
+                    image?.let { AsyncImage(it, "Shared photo", modifier = Modifier.sizeIn(maxWidth = 260.dp, maxHeight = 200.dp).clip(RoundedCornerShape(12.dp))) }
+                    if (message.text.isNotBlank()) SelectionContainer { Text(message.text, style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp, lineHeight = 24.sp)) }
+                }
             }
+        }
+    } else AssistantText(message.text)
+}
+@Composable private fun AssistantText(text: String) {
+    val clipboard = LocalClipboardManager.current
+    Column(Modifier.fillMaxWidth()) {
+        SelectionContainer { ReplyContent(text) }
+        IconButton(onClick = { clipboard.setText(AnnotatedString(text)) }, modifier = Modifier.size(32.dp)) {
+            Icon(Icons.Default.ContentCopy, "Copy answer", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
         }
     }
 }

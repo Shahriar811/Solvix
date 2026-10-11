@@ -10,7 +10,7 @@ import com.example.task_automator.ChatModelState
 import com.example.task_automator.helpers.ModelInstallState
 
 @Composable
-fun GemmaModelPanel(
+fun ModelSetupPanel(
     installation: ModelInstallState,
     runtime: ChatModelState,
     onImport: () -> Unit,
@@ -22,8 +22,8 @@ fun GemmaModelPanel(
     var wifiOnly by remember { mutableStateOf(true) }
     val installed = installation.installedPath != null
 
-    SolvixCard(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-        Text("Gemma 4 E2B", style = MaterialTheme.typography.titleSmall)
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text("Offline assistant", style = MaterialTheme.typography.titleSmall)
         Spacer(Modifier.height(4.dp))
         Text(
             text = when {
@@ -64,7 +64,7 @@ fun GemmaModelPanel(
     if (showDownloadDialog) {
         AlertDialog(
             onDismissRequest = { showDownloadDialog = false },
-            title = { Text("Download Gemma 4?") },
+            title = { Text("Download offline assistant?") },
             text = {
                 Column {
                     Text("Download 2.59 GB from Hugging Face once. After setup, chat and image analysis work offline. You need at least 2.7 GB of free storage.")

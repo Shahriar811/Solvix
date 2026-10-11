@@ -3,7 +3,7 @@ package com.example.task_automator
 import android.graphics.Bitmap
 import android.graphics.Color
 import androidx.test.platform.app.InstrumentationRegistry
-import com.example.task_automator.helpers.GemmaModelRepository
+import com.example.task_automator.helpers.OfflineModelRepository
 import com.example.task_automator.helpers.LlmInferenceHelper
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -13,17 +13,17 @@ import org.junit.Assume.assumeTrue
 import org.junit.Test
 
 /** Opt-in device test: downloads 2.59 GB and leaves the verified model installed for the app. */
-class GemmaNativeSmokeTest {
+class OfflineModelSmokeTest {
     @Test fun downloadsAndRunsTextAndImageWithOneBundle() = runBlocking {
         assumeTrue(InstrumentationRegistry.getArguments().getString("runModelSmokeTest") == "true")
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        GemmaModelRepository.initialize(context)
-        withTimeout(60_000) { GemmaModelRepository.state.first { !it.busy } }
-        if (GemmaModelRepository.state.value.installedPath == null) {
-            GemmaModelRepository.download(wifiOnly = true)
+        OfflineModelRepository.initialize(context)
+        withTimeout(60_000) { OfflineModelRepository.state.first { !it.busy } }
+        if (OfflineModelRepository.state.value.installedPath == null) {
+            OfflineModelRepository.download(wifiOnly = true)
         }
         val installation = withTimeout(20 * 60_000) {
-            GemmaModelRepository.state.first { !it.busy }
+            OfflineModelRepository.state.first { !it.busy }
         }
         checkNotNull(installation.installedPath) { installation.error ?: "Model is not installed." }
         val inference = LlmInferenceHelper()

@@ -2,7 +2,6 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    id("com.google.gms.google-services")
 }
 
 android {
@@ -74,43 +73,21 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
 
-    // Navigation
-    implementation(libs.androidx.navigation.compose)
-
     // Material Icons
     implementation(libs.compose.material.icons.extended)
-
-    // Firebase (via BoM)
-    implementation(platform("com.google.firebase:firebase-bom:33.2.0"))
-    implementation("com.google.firebase:firebase-auth-ktx")
-
-    // Google Sign-In
-    implementation("com.google.android.gms:play-services-auth:21.2.0")
-
-    // Credential Manager
-    implementation("androidx.credentials:credentials:1.3.0")
-    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
 
     // Image loading (Coil for Compose)
     implementation("io.coil-kt:coil-compose:2.6.0")
 
-    // One Gemma 4 bundle for text and multimodal inference.
+    // Offline text and image inference.
     implementation("com.google.ai.edge.litertlm:litertlm-android:0.13.1")
 
-    // Core library for bitmap utilities
-    implementation("androidx.core:core:1.15.0")
-
-    // LocalBroadcastManager for notification communication
-    implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
+    // Durable local chat history.
+    implementation("com.google.code.gson:gson:2.14.0")
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
-
-    // Google Maps dependencies
-    implementation("com.google.android.gms:play-services-maps:18.2.0")
-    implementation("com.google.android.gms:play-services-location:21.0.1")
-    implementation("com.google.maps.android:android-maps-utils:3.0.0")
 
     // Testing
     testImplementation(libs.junit)

@@ -12,7 +12,7 @@ object ModelIntegrity {
         onProgress: (Long) -> Unit = {}
     ) {
         require(file.isFile && file.length() == expectedSize) {
-            "This is not the complete Gemma 4 E2B model. Select gemma-4-E2B-it.litertlm (2.59 GB)."
+            "This is not the complete offline model. Select the standard .litertlm file (2.59 GB)."
         }
         val digest = MessageDigest.getInstance("SHA-256")
         file.inputStream().buffered().use { input ->
@@ -28,7 +28,7 @@ object ModelIntegrity {
         }
         val actualHash = digest.digest().joinToString("") { "%02x".format(it) }
         require(actualHash.equals(expectedSha256, ignoreCase = true)) {
-            "Model verification failed. Import the original Gemma 4 E2B file or download it again."
+            "Model verification failed. Import the original offline model file or download it again."
         }
     }
 }

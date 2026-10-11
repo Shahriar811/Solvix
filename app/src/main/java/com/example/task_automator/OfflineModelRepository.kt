@@ -24,13 +24,13 @@ data class ModelInstallState(
     val installedPath: String? = null,
     val busy: Boolean = false,
     val canCancel: Boolean = false,
-    val label: String = "Download or import Gemma 4 to start.",
+    val label: String = "Download or import the offline assistant to start.",
     val progress: Float? = null,
     val error: String? = null
 )
 
 /** DownloadManager keeps the large transfer alive across navigation and process restarts. */
-object GemmaModelRepository {
+object OfflineModelRepository {
     const val FILE_NAME = "gemma-4-E2B-it.litertlm"
     const val MODEL_SIZE = 2_588_147_712L
     const val MODEL_SHA256 = "181938105e0eefd105961417e8da75903eacda102c4fce9ce90f50b97139a63c"
@@ -88,7 +88,7 @@ object GemmaModelRepository {
                 checkSpace()
                 partialFile.delete()
                 val request = DownloadManager.Request(Uri.parse(DOWNLOAD_URL))
-                    .setTitle("Solvix — Gemma 4 E2B")
+                    .setTitle("Solvix offline assistant")
                     .setDescription("Downloading the offline AI model (2.59 GB)")
                     .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                     .setAllowedOverMetered(!wifiOnly)
@@ -118,11 +118,11 @@ object GemmaModelRepository {
                         val sizeColumn = cursor.getColumnIndex(OpenableColumns.SIZE)
                         val name = if (nameColumn >= 0 && !cursor.isNull(nameColumn)) cursor.getString(nameColumn) else null
                         require(name?.endsWith(".litertlm", ignoreCase = true) != false) {
-                            "Select gemma-4-E2B-it.litertlm. The old .task models are no longer used."
+                            "Select the standard offline .litertlm model (2.59 GB)."
                         }
                         val declaredSize = if (sizeColumn >= 0 && !cursor.isNull(sizeColumn)) cursor.getLong(sizeColumn) else -1L
                         if (declaredSize >= 0) require(declaredSize == MODEL_SIZE) {
-                            "Select gemma-4-E2B-it.litertlm (2.59 GB), rather than an Intel, Tensor, Qualcomm or web variant."
+                            "Select the standard 2.59 GB mobile model, rather than a processor-specific or web version."
                         }
                     }
                 }
@@ -136,7 +136,7 @@ object GemmaModelRepository {
                             val count = input.read(buffer)
                             if (count < 0) break
                             copied += count
-                            require(copied <= MODEL_SIZE) { "Select the standard Gemma 4 E2B bundle (2.59 GB)." }
+                            require(copied <= MODEL_SIZE) { "Select the standard offline model (2.59 GB)." }
                             output.write(buffer, 0, count)
                             if (!cancelling) mutableState.value = mutableState.value.copy(progress = copied.toFloat() / MODEL_SIZE)
                         }
@@ -231,7 +231,7 @@ object GemmaModelRepository {
     }
 
     private fun publishInstalled() {
-        mutableState.value = ModelInstallState(installedPath = modelFile.absolutePath, label = "Gemma 4 E2B is installed. Runs offline.")
+        mutableState.value = ModelInstallState(installedPath = modelFile.absolutePath, label = "The offline assistant is installed.")
     }
 
     private fun checkSpace() {

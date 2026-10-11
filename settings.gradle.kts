@@ -19,6 +19,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Task-Automator"
+rootProject.name = "Solvix"
 include(":app")
  

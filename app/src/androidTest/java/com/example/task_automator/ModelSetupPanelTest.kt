@@ -6,13 +6,13 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.example.task_automator.helpers.ModelInstallState
-import com.example.task_automator.ui.components.GemmaModelPanel
+import com.example.task_automator.ui.components.ModelSetupPanel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
-class GemmaModelPanelTest {
+class ModelSetupPanelTest {
     @get:Rule val compose = createComposeRule()
 
     @Test fun importOpensPickerAndDownloadUsesWifiByDefault() {
@@ -20,7 +20,7 @@ class GemmaModelPanelTest {
         var wifiOnly: Boolean? = null
         compose.setContent {
             MaterialTheme {
-                GemmaModelPanel(ModelInstallState(), ChatModelState(),
+                ModelSetupPanel(ModelInstallState(), ChatModelState(),
                     onImport = { imports++ }, onDownload = { wifiOnly = it },
                     onCancel = {}, onRetryLoading = {})
             }
@@ -28,7 +28,7 @@ class GemmaModelPanelTest {
         compose.onNodeWithText("Import").performClick()
         assertEquals(1, imports)
         compose.onNodeWithText("Download").performClick()
-        compose.onNodeWithText("Download Gemma 4?").assertIsDisplayed()
+        compose.onNodeWithText("Download offline assistant?").assertIsDisplayed()
         compose.onNodeWithText("Start download").performClick()
         assertEquals(true, wifiOnly)
     }
@@ -37,7 +37,7 @@ class GemmaModelPanelTest {
         var cancelled = false
         compose.setContent {
             MaterialTheme {
-                GemmaModelPanel(
+                ModelSetupPanel(
                     ModelInstallState(busy = true, canCancel = true, label = "Downloading from Hugging Face…", progress = 0.5f),
                     ChatModelState(), onImport = {}, onDownload = {},
                     onCancel = { cancelled = true }, onRetryLoading = {})
@@ -53,7 +53,7 @@ class GemmaModelPanelTest {
     @Test fun installedBundleShowsOfflineMultimodalStatus() {
         compose.setContent {
             MaterialTheme {
-                GemmaModelPanel(ModelInstallState(installedPath = "/model.litertlm"),
+                ModelSetupPanel(ModelInstallState(installedPath = "/model.litertlm"),
                     ChatModelState(ready = true, supportsImages = true),
                     onImport = {}, onDownload = {}, onCancel = {}, onRetryLoading = {})
             }
