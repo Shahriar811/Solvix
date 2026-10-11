@@ -8,6 +8,8 @@ import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
@@ -27,9 +29,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -101,7 +103,7 @@ fun ChatScreen() {
         drawerContent = {
             ModalDrawerSheet(modifier = Modifier.width(310.dp), drawerContainerColor = MaterialTheme.colorScheme.surface) {
                 Column(Modifier.fillMaxSize().statusBarsPadding().padding(16.dp)) {
-                    Text("Chats", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(8.dp))
+                    Text("Chats", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.secondary, modifier = Modifier.padding(8.dp))
                     TextButton(onClick = { vm.session.newChat(); scope.launch { drawer.close() } }, enabled = !chat.busy && chat.historyReady) {
                         Icon(Icons.Default.Add, null); Spacer(Modifier.width(8.dp)); Text("New chat")
                     }
@@ -132,9 +134,12 @@ fun ChatScreen() {
                 Row(Modifier.fillMaxWidth().height(60.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { scope.launch { drawer.open() } }, enabled = !chat.busy) { Icon(Icons.Default.Menu, "Chat history") }
                     Column(Modifier.weight(1f).padding(horizontal = 8.dp)) {
-                        Text(if (chat.current.messages.isEmpty()) "Solvix" else chat.current.title, style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(if (chat.current.messages.isEmpty()) "Solvix" else chat.current.title, style = MaterialTheme.typography.titleLarge,
+                            color = if (chat.current.messages.isEmpty()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    IconButton(onClick = vm.session::newChat, enabled = !chat.busy && chat.historyReady) { Icon(Icons.Default.Edit, "New chat") }
+                    IconButton(onClick = vm.session::newChat, enabled = !chat.busy && chat.historyReady,
+                        colors = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.primary)) { Icon(Icons.Default.Edit, "New chat") }
                     IconButton(onClick = { settings = true }) { Icon(Icons.Default.MoreHoriz, "Settings") }
                 }
             },
@@ -151,10 +156,12 @@ fun ChatScreen() {
                             IconButton(onClick = { vm.session.setImage(null) }, enabled = !chat.busy) { Icon(Icons.Default.Close, "Remove photo") }
                         }
                     }
-                    Surface(shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surfaceVariant) {
+                    Surface(shape = RoundedCornerShape(28.dp), color = MaterialTheme.colorScheme.surfaceVariant,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)) {
                         Row(Modifier.padding(6.dp), verticalAlignment = Alignment.Bottom) {
                             Box {
-                                IconButton(onClick = { attachments = true }, enabled = runtime.ready && runtime.supportsImages && chat.historyReady && !chat.busy) { Icon(Icons.Default.Add, "Attach photo") }
+                                IconButton(onClick = { attachments = true }, enabled = runtime.ready && runtime.supportsImages && chat.historyReady && !chat.busy,
+                                    colors = IconButtonDefaults.iconButtonColors(contentColor = MaterialTheme.colorScheme.secondary)) { Icon(Icons.Default.Add, "Attach photo") }
                                 DropdownMenu(expanded = attachments, onDismissRequest = { attachments = false }) {
                                     DropdownMenuItem(text = { Text("Choose photo") }, leadingIcon = { Icon(Icons.Default.Image, null) }, onClick = {
                                         attachments = false
@@ -202,6 +209,9 @@ fun ChatScreen() {
                     }
                     if (chat.current.messages.isEmpty() && !chat.sending) {
                         Column(Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                            Image(painterResource(R.drawable.solvix_logo), contentDescription = null,
+                                modifier = Modifier.size(56.dp).clip(RoundedCornerShape(18.dp)))
+                            Spacer(Modifier.height(20.dp))
                             Text(if (runtime.ready) "How can I help?" else "Your private assistant", style = MaterialTheme.typography.headlineMedium)
                             Spacer(Modifier.height(12.dp))
                             Text(when {
@@ -235,9 +245,9 @@ fun ChatScreen() {
     if (settings) {
         ModalBottomSheet(onDismissRequest = { settings = false }, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 32.dp)) {
-                Text("Settings", style = MaterialTheme.typography.headlineSmall)
+                Text("Settings", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.secondary)
                 Spacer(Modifier.height(20.dp))
-                Text("Appearance", style = MaterialTheme.typography.titleSmall)
+                Text("Appearance", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.secondary)
                 val mode by ThemeManager.themeMode.collectAsState()
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(AppThemeMode.SYSTEM to "System", AppThemeMode.LIGHT to "Light", AppThemeMode.DARK to "Dark").forEach { (value, label) ->
@@ -287,21 +297,27 @@ fun ChatScreen() {
 }
 
 @Composable private fun HistoryLabel(text: String) {
-    Text(text, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(8.dp, 16.dp))
+    Text(text, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.secondary, modifier = Modifier.padding(8.dp, 16.dp))
 }
 @Composable
 internal fun HistoryRow(chat: SavedChat, selected: Boolean, enabled: Boolean, onOpen: () -> Unit, onPin: () -> Unit, onDelete: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (selected) MaterialTheme.colorScheme.surfaceVariant else Color.Transparent)
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
         .clickable(enabled = enabled, onClick = onOpen).padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(chat.title, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        IconButton(onClick = onPin, enabled = enabled) { Icon(Icons.Default.PushPin, if (chat.pinned) "Unpin chat" else "Pin chat", tint = if (chat.pinned) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp)) }
+        Text(chat.title, style = MaterialTheme.typography.bodyMedium,
+            color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        IconButton(onClick = onPin, enabled = enabled,
+            colors = IconButtonDefaults.iconButtonColors(contentColor = if (chat.pinned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)) {
+            Icon(Icons.Default.PushPin, if (chat.pinned) "Unpin chat" else "Pin chat", modifier = Modifier.size(18.dp))
+        }
         IconButton(onClick = onDelete, enabled = enabled) { Icon(Icons.Default.DeleteOutline, "Delete chat", modifier = Modifier.size(18.dp)) }
     }
 }
 @Composable private fun ChatMessageView(message: ChatMessage, image: File?) {
     if (message.role == ChatRole.USER) {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.End) {
-            Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(20.dp), modifier = Modifier.widthIn(max = 320.dp)) {
+            Surface(color = MaterialTheme.colorScheme.secondaryContainer, contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                shape = RoundedCornerShape(20.dp), modifier = Modifier.widthIn(max = 320.dp)) {
                 Column(Modifier.padding(14.dp)) {
                     image?.let { AsyncImage(it, "Shared photo", modifier = Modifier.sizeIn(maxWidth = 260.dp, maxHeight = 200.dp).clip(RoundedCornerShape(12.dp))) }
                     if (message.text.isNotBlank()) SelectionContainer { Text(message.text, style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp, lineHeight = 24.sp)) }
@@ -309,13 +325,4 @@ internal fun HistoryRow(chat: SavedChat, selected: Boolean, enabled: Boolean, on
             }
         }
     } else AssistantText(message.text)
-}
-@Composable private fun AssistantText(text: String) {
-    val clipboard = LocalClipboardManager.current
-    Column(Modifier.fillMaxWidth()) {
-        SelectionContainer { ReplyContent(text) }
-        IconButton(onClick = { clipboard.setText(AnnotatedString(text)) }, modifier = Modifier.size(32.dp)) {
-            Icon(Icons.Default.ContentCopy, "Copy answer", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
-        }
-    }
 }

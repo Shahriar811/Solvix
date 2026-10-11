@@ -32,7 +32,7 @@ fun ModelLibraryPanel(
     var useId by rememberSaveable { mutableStateOf<String?>(null) }
     val blocked = installation.busy || interactionBusy || runtime.loading || !installation.initialized
     val hardware = installation.hardware
-    Text("Models", style = MaterialTheme.typography.titleSmall)
+    Text("Models", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.secondary)
     Spacer(Modifier.height(8.dp))
     hardware?.let { phone ->
         Text(phone.name, style = MaterialTheme.typography.bodyMedium)
@@ -47,12 +47,16 @@ fun ModelLibraryPanel(
         val installed = model.id in installation.installedModels
         val active = runtime.ready && runtime.modelId == model.id
         val compatibility = hardware?.let { ModelCompatibility.assess(model, it, installed) }
-        Surface(shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant), modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
+        Surface(shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp,
+            if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.65f) else MaterialTheme.colorScheme.outlineVariant),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
             Column(Modifier.padding(12.dp)) {
                 Row(Modifier.fillMaxWidth().clickable { expandedId = if (expandedId == model.id) "" else model.id }, verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text(model.name + if (model.id == ModelCatalog.DEFAULT_ID) " · Default" else "", style = MaterialTheme.typography.titleSmall)
-                        Text("${model.sizeLabel} · ${if (model.supportsImages) "Text + photos" else "Text only"}" + when { active -> " · Active"; installed -> " · Installed"; else -> "" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(model.name + if (model.id == ModelCatalog.DEFAULT_ID) " · Default" else "", style = MaterialTheme.typography.titleSmall,
+                            color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                        Text("${model.sizeLabel} · ${if (model.supportsImages) "Text + photos" else "Text only"}" + when { active -> " · Active"; installed -> " · Installed"; else -> "" }, style = MaterialTheme.typography.bodySmall,
+                            color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Icon(if (expandedId == model.id) Icons.Default.ExpandLess else Icons.Default.ExpandMore, "Model details")
                 }

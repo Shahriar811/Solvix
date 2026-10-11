@@ -13,7 +13,7 @@ const val DEVELOPER_GITHUB_URL = "https://github.com/Shahriar811"
 
 @Composable
 fun AboutSection(onOpenGitHub: () -> Unit, onOpenLicense: () -> Unit) {
-    Text("About Solvix", style = MaterialTheme.typography.titleSmall)
+    Text("About Solvix", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.secondary)
     Text("Version ${BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant)
     Spacer(Modifier.height(8.dp))

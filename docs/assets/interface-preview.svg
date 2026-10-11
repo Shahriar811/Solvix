@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="670" viewBox="0 0 1080 670" role="img" aria-labelledby="title description">
+<title id="title">Solvix interface illustrations</title>
+<desc id="description">Light theme, dark theme, and colored code panels with copy controls. Illustrations with example content, not device screenshots.</desc>
+<rect width="1080" height="670" rx="24" fill="#E7EEF3"/>
+<g font-family="Segoe UI, Arial, sans-serif">
+<text x="40" y="44" fill="#15273E" font-size="20" font-weight="700">A calm space for every conversation.</text>
+<text x="40" y="68" fill="#526277" font-size="13" font-weight="400">Light and dark themes · Code that is easy to read and copy</text>
+<text x="40" y="108" fill="#3B5974" font-size="13" font-weight="700">LIGHT THEME</text>
+<rect x="40" y="124" width="316" height="496" rx="20" fill="#FAFCFD" stroke="#D6E0E7"/>
+<path d="M60 151h16m-16 5h16m-16 5h16" stroke="#15273E" stroke-width="2" stroke-linecap="round"/>
+<text x="91" y="163" fill="#007780" font-size="19" font-weight="700">Solvix</text>
+<text x="320" y="163" fill="#526277" font-size="19" font-weight="400">···</text>
+<rect x="90" y="194" width="244" height="70" rx="17" fill="#E7EEF7"/>
+<text x="105" y="222" fill="#213B56" font-size="13" font-weight="400">How do I keep an important</text>
+<text x="105" y="243" fill="#213B56" font-size="13" font-weight="400">conversation?</text>
+<text x="62" y="300" fill="#15273E" font-size="14" font-weight="400">Pin it from your chat history.</text>
+<text x="62" y="327" fill="#15273E" font-size="14" font-weight="400">Pinned chats stay until you</text>
+<text x="62" y="350" fill="#15273E" font-size="14" font-weight="400">choose to delete them.</text>
+<g stroke="#526277" fill="none" stroke-width="1.3"><rect x="63" y="373" width="10" height="12" rx="2"/><path d="M66 370h10v12"/></g>
+<text x="84" y="383" fill="#526277" font-size="11" font-weight="400">Copy answer</text>
+<rect x="54" y="547" width="288" height="56" rx="27" fill="#EDF3F6" stroke="#D6E0E7"/>
+<text x="70" y="582" fill="#3B5974" font-size="24" font-weight="400">+</text>
+<text x="99" y="581" fill="#526277" font-size="13" font-weight="400">Message Solvix</text>
+<circle cx="313" cy="575" r="18" fill="#007780"/>
+<path d="M313 582v-14m-5 5 5-5 5 5" stroke="#FFFFFF" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="382" y="108" fill="#3B5974" font-size="13" font-weight="700">DARK THEME</text>
+<rect x="382" y="124" width="316" height="496" rx="20" fill="#101A28" stroke="#304355"/>
+<path d="M402 151h16m-16 5h16m-16 5h16" stroke="#E6EEF5" stroke-width="2" stroke-linecap="round"/>
+<text x="433" y="163" fill="#81D8D0" font-size="19" font-weight="700">Solvix</text>
+<text x="662" y="163" fill="#ADBDCD" font-size="19" font-weight="400">···</text>
+<rect x="432" y="194" width="244" height="70" rx="17" fill="#24384E"/>
+<text x="447" y="222" fill="#DDEAF8" font-size="13" font-weight="400">Can I use this without</text>
+<text x="447" y="243" fill="#DDEAF8" font-size="13" font-weight="400">an internet connection?</text>
+<text x="404" y="300" fill="#E6EEF5" font-size="14" font-weight="400">Yes. Install a compatible model</text>
+<text x="404" y="327" fill="#E6EEF5" font-size="14" font-weight="400">once, then chat offline.</text>
+<text x="404" y="365" fill="#ADBDCD" font-size="13" font-weight="400">Your answers run on your device.</text>
+<g stroke="#ADBDCD" fill="none" stroke-width="1.3"><rect x="405" y="388" width="10" height="12" rx="2"/><path d="M408 385h10v12"/></g>
+<text x="426" y="398" fill="#ADBDCD" font-size="11" font-weight="400">Copy answer</text>
+<rect x="396" y="547" width="288" height="56" rx="27" fill="#1E2D3C" stroke="#304355"/>
+<text x="412" y="582" fill="#A9C3DF" font-size="24" font-weight="400">+</text>
+<text x="441" y="581" fill="#ADBDCD" font-size="13" font-weight="400">Message Solvix</text>
+<circle cx="655" cy="575" r="18" fill="#81D8D0"/>
+<path d="M655 582v-14m-5 5 5-5 5 5" stroke="#073A3C" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="724" y="108" fill="#3B5974" font-size="13" font-weight="700">CODE ANSWERS</text>
+<rect x="724" y="124" width="316" height="496" rx="20" fill="#FAFCFD" stroke="#D6E0E7"/>
+<path d="M744 151h16m-16 5h16m-16 5h16" stroke="#15273E" stroke-width="2" stroke-linecap="round"/>
+<text x="775" y="163" fill="#007780" font-size="19" font-weight="700">Solvix</text>
+<text x="1004" y="163" fill="#526277" font-size="19" font-weight="400">···</text>
+<rect x="774" y="194" width="244" height="70" rx="17" fill="#E7EEF7"/>
+<text x="789" y="222" fill="#213B56" font-size="13" font-weight="400">Write a greeting function</text>
+<text x="789" y="243" fill="#213B56" font-size="13" font-weight="400">in Python.</text>
+<text x="746" y="297" fill="#15273E" font-size="14" font-weight="400">Here is a simple example:</text>
+<rect x="746" y="314" width="272" height="136" rx="12" fill="#202231"/>
+<path d="M758 314h248a12 12 0 0 1 12 12v27H746v-27a12 12 0 0 1 12-12" fill="#2A2D40"/>
+<text x="760" y="338" fill="#E6EAF2" font-size="11" font-weight="400">python</text>
+<g stroke="#E6EAF2" fill="none" stroke-width="1.3"><rect x="924" y="328" width="10" height="12" rx="2"/><path d="M927 325h10v12"/></g>
+<text x="945" y="338" fill="#E6EAF2" font-size="11" font-weight="400">Copy code</text>
+<g font-family="Consolas, monospace" font-size="12">
+<text x="760" y="379" fill="#E6EAF2"><tspan fill="#C4A7FF">def</tspan> <tspan fill="#89DCEB">greet</tspan>(name):</text>
+<text x="760" y="402" xml:space="preserve" fill="#E6EAF2">  <tspan fill="#C4A7FF">return</tspan> <tspan fill="#A6E3A1">"Hello, "</tspan> + name</text>
+<text x="760" y="432" fill="#9CA8BD"># Ready to copy and use</text></g>
+<g stroke="#526277" fill="none" stroke-width="1.3"><rect x="747" y="466" width="10" height="12" rx="2"/><path d="M750 463h10v12"/></g>
+<text x="768" y="476" fill="#526277" font-size="11" font-weight="400">Copy answer</text>
+<rect x="738" y="547" width="288" height="56" rx="27" fill="#EDF3F6" stroke="#D6E0E7"/>
+<text x="754" y="582" fill="#3B5974" font-size="24" font-weight="400">+</text>
+<text x="783" y="581" fill="#526277" font-size="13" font-weight="400">Message Solvix</text>
+<circle cx="997" cy="575" r="18" fill="#007780"/>
+<path d="M997 582v-14m-5 5 5-5 5 5" stroke="#FFFFFF" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="40" y="647" fill="#526277" font-size="11" font-weight="400">SOLVIX · Interface illustrations with example content · Not device screenshots</text>
+</g></svg>
