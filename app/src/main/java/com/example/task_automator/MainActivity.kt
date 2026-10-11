@@ -12,6 +12,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,7 +25,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.navigation.compose.*
 import com.example.task_automator.services.NotificationListener
+import com.example.task_automator.ui.theme.AppThemeMode
 import com.example.task_automator.ui.theme.TaskAutomatorTheme
+import com.example.task_automator.ui.theme.ThemeManager
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
@@ -42,6 +49,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        ThemeManager.init(this)
         firebaseAuth = Firebase.auth
 
         // Request all necessary permissions
@@ -51,7 +59,15 @@ class MainActivity : ComponentActivity() {
         checkNotificationAccess()
 
         setContent {
-            TaskAutomatorTheme {
+            val themeMode by ThemeManager.themeMode.collectAsState()
+            val isSystemDark = isSystemInDarkTheme()
+            val isDark = when (themeMode) {
+                AppThemeMode.SYSTEM -> isSystemDark
+                AppThemeMode.LIGHT -> false
+                AppThemeMode.DARK -> true
+            }
+
+            TaskAutomatorTheme(darkTheme = isDark) {
                 val navController = rememberNavController()
                 val snackbarHostState = remember { SnackbarHostState() }
                 val scope = rememberCoroutineScope()
@@ -67,12 +83,17 @@ class MainActivity : ComponentActivity() {
                 }
 
                 Scaffold(
+                    containerColor = MaterialTheme.colorScheme.background,
                     snackbarHost = { SnackbarHost(snackbarHostState) }
                 ) { innerPadding ->
                     NavHost(
                         navController = navController,
                         startDestination = AppDestinations.LOGIN_ROUTE,
-                        modifier = Modifier.padding(innerPadding)
+                        modifier = Modifier.padding(innerPadding),
+                        enterTransition = { fadeIn(tween(260)) + slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(260)) },
+                        exitTransition = { fadeOut(tween(260)) + slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Start, tween(260)) },
+                        popEnterTransition = { fadeIn(tween(260)) + slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(260)) },
+                        popExitTransition = { fadeOut(tween(260)) + slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.End, tween(260)) }
                     ) {
                         composable(AppDestinations.LOGIN_ROUTE) {
                             LoginScreen(
